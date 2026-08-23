@@ -9,10 +9,13 @@
   },
   "scripts": {
     "build": "next build",
+    "db:migrate": "tsx scripts/migrate.ts",
     "dev": "next dev",
     "lint": "tsc --noEmit",
     "payload:feasibility": "tsx scripts/payload-feasibility.ts",
     "phase0:proof": "tsx scripts/phase0-proof.ts",
+    "phase0b:proof": "tsx scripts/phase0b-proof.ts",
+    "worker": "tsx scripts/phase0b-worker.ts",
     "start": "next start",
     "test": "node --import tsx --test test/unit/**/*.test.ts",
     "typecheck": "tsc --noEmit"
@@ -24,6 +27,7 @@
     "next": "16.2.6",
     "payload": "3.88.0",
     "pg": "8.20.0",
+    "pg-boss": "12.14.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
