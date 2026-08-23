@@ -1,5 +1,5 @@
 # Architecture decision records
 
-No Mhoo Core architecture decisions have been accepted yet.
-
-Do not infer schema or authority from placeholder documentation.
+Cross-repository Core authority decisions are recorded in `mhoo` ADR-0003.
+Core implementation records must preserve that Twenty remains the sole human
+identity and Workspace authority.

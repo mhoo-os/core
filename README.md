@@ -1,9 +1,18 @@
 # Mhoo Core
 
-[![Status: Future](https://img.shields.io/badge/status-future-64748b)](https://github.com/mhoo-os/core)
-[![Schemas: Not implemented](https://img.shields.io/badge/schemas-not_implemented-64748b)](https://github.com/mhoo-os/core)
+[![Status: Phase 0](https://img.shields.io/badge/status-phase_0-2563eb)](https://github.com/mhoo-os/core)
+[![Authority: none](https://img.shields.io/badge/production_authority-none-64748b)](https://github.com/mhoo-os/core)
 
-Mhoo Core is future canonical business state layer.
-No authority migration is implemented yet.
+Mhoo Core is the future canonical business-state and evidence layer. Phase 0
+contains a local-only foundation proof; it has no production authority and does
+not ingest customer or provider data.
 
-This repository contains architecture documentation only. It has no schemas, domain implementation, database migrations, application code, or production authority.
+Twenty remains the authority for people, authentication, memberships,
+authorization, and Workspace lifecycle. Core stores only a trusted Workspace to
+physical tenant-isolation binding.
+
+See [Phase 0 foundation](docs/phase0-foundation.md) for the local proof and its
+limits.
+
+[Payload feasibility](docs/payload-feasibility.md) records why Payload is not
+used as Core runtime infrastructure.

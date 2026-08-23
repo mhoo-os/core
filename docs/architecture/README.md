@@ -1,5 +1,5 @@
 # Mhoo Core architecture
 
-Use this directory for future architecture documentation.
-
-No canonical-state implementation or authority migration has been approved.
+Phase 0 implements only local tenant-isolation, job, evidence-store, and vector
+plumbing. It does not transfer production authority. See
+[the foundation proof](../phase0-foundation.md).
