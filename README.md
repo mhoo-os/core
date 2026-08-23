@@ -25,5 +25,9 @@ transformation-only dependency and recommends rejection before real ingestion.
 immutable EvidenceStore contract against local filesystem and loopback-only
 MinIO. It does not select or configure Cloudflare R2.
 
+[Phase 0E](docs/phase0e-evidence-model-and-provenance-ledger.md) is the
+design-only Evidence identity, provenance, and lifecycle-ledger contract. It
+does not implement a schema, ingestion, retrieval, or agents.
+
 [Payload feasibility](docs/payload-feasibility.md) records why Payload is not
 used as Core runtime infrastructure.
