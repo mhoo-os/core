@@ -3,13 +3,21 @@
 [![Status: Phase 0](https://img.shields.io/badge/status-phase_0-2563eb)](https://github.com/mhoo-os/core)
 [![Authority: none](https://img.shields.io/badge/production_authority-none-64748b)](https://github.com/mhoo-os/core)
 
-Mhoo Core is the future canonical business-state and evidence layer. Phase 0
-contains a local-only foundation proof; it has no production authority and does
-not ingest customer or provider data.
+Mhoo Core is the future tenant-scoped business-state and knowledge substrate
+for humans, applications, and agents. Evidence and provenance are important
+primitives, not the center of every Core mutation. Phase 0 contains a
+local-only foundation proof; it has no production authority and does not ingest
+customer or provider data.
 
 Twenty remains the authority for people, authentication, memberships,
 authorization, and Workspace lifecycle. Core stores only a trusted Workspace to
 physical tenant-isolation binding.
+
+Core owns durable truth and enforces its trusted tenant context; PostgreSQL
+owns transactions and RLS; pg-boss owns atomic dispatch and simple background
+tasks. External models own reasoning, while Twenty and MCP are interfaces.
+The detailed boundary and future-only Inngest tripwires are in
+[ADR-0001](ADR/0001-execution-architecture.md).
 
 See [Phase 0 foundation](docs/phase0-foundation.md) for the local proof and its
 limits.

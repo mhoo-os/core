@@ -39,6 +39,27 @@ COMMIT;
 
 The queue pool never provides tenant context. `SET` is forbidden because pooled
 connections could leak it; Core uses transaction-local `set_config` instead.
+Core does not configure PgBouncer in Phase 0. If Infrastructure adds it, the
+data pools must use transaction pooling (not session pooling) and verify that
+setting alongside the runtime deployment.
+
+## Trusted job envelope
+
+Jobs persist a clear separation between trusted context and domain data:
+
+```text
+{ context: MhooJobContext, payload: tenant-free domain data }
+```
+
+The API/service boundary resolves tenancy before it creates the envelope.
+`MhooJobContext` has versioned `tenantId`, optional operation/request/trace IDs,
+and a user/system/service actor. It is branded so application code cannot make
+a trusted context with an object literal, and every worker re-validates the
+persisted JSON. Handlers accept `(context, payload)` and establish RLS from
+`context.tenantId`; the mock payload parser rejects `tenantId` at runtime.
+
+This is an authorization-context boundary, not a new human identity system:
+Twenty still authorizes people and Workspace access before Core receives work.
 
 ## Mock model and idempotency
 
@@ -76,6 +97,7 @@ TENANT RLS: PASS | FAIL
 POOL HYGIENE: PASS | FAIL
 LEAST PRIVILEGE: PASS | FAIL
 DEAD-LETTER PATH: PASS | FAIL
+TRUSTED JOB CONTEXT: PASS | FAIL
 ANTI-INNER-PLATFORM GATE: PASS | FAIL
 ```
 
@@ -88,6 +110,12 @@ Phase 0B passed all critical gates on 2026-08-24. The implementation required
 only pg-boss queues, a tenant transaction helper, idempotent repository writes,
 and the domain-specific `ingestion_status`. It introduced no generic workflow
 state, scheduler, checkpoint, fanout, dependency, join, or resume-token system.
+
+If Core requires durable multi-day waits, webhook correlation, human approval
+and resume, independently checkpointed steps, or workflow/state-machine tables,
+stop and evaluate Inngest. It is documented in
+[ADR-0001](../ADR/0001-execution-architecture.md) but is not installed or used
+by Phase 0.
 
 Recommended initial budget: API data max 3; worker boss max 3; worker data max
 3 for the proof workload (plus independently accounted migrator/test connections).
