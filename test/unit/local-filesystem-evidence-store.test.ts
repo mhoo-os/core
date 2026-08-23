@@ -59,25 +59,26 @@ test('rejects invalid evidence before publishing it', async () => {
   );
   await assert.rejects(
     () => store.put('../escape', evidence(new TextEncoder().encode('evidence'))),
-    /escapes the configured local store/u,
+    /canonical sha256 content address/u,
   );
+  await assert.rejects(() => store.get('../escape'), /canonical sha256 content address/u);
   assert.throws(() => contentAddressedEvidenceKey('UPPERCASE'), /lowercase hexadecimal/u);
 });
 
-test('enforces immutable conflict behavior and concurrent duplicate idempotency', async () => {
+test('enforces canonical keys and concurrent duplicate idempotency', async () => {
   const { store } = await createStore();
   const first = evidence(new TextEncoder().encode('first'));
   const second = evidence(new TextEncoder().encode('second'));
-  const key = 'immutable/test';
+  const key = contentAddressedEvidenceKey(first.sha256);
 
   const concurrent = await Promise.all(Array.from({ length: 8 }, () => store.put(key, first)));
   assert.equal(concurrent.filter((result) => result.created).length, 1);
   assert.equal(concurrent.filter((result) => !result.created).length, 7);
-  await assert.rejects(() => store.put(key, second), /immutable and already contains different content/u);
+  await assert.rejects(() => store.put(key, second), /key does not match evidence SHA-256/u);
   assertEvidenceEqual(await store.get(key), first);
 });
 
-test('detects tampered local evidence bytes and metadata', async () => {
+test('detects tampered local evidence bytes, metadata, and content-address mismatch', async () => {
   const { root, store } = await createStore();
   const object = evidence(new TextEncoder().encode('untampered'));
   const key = contentAddressedEvidenceKey(object.sha256);
@@ -91,4 +92,9 @@ test('detects tampered local evidence bytes and metadata', async () => {
   const metadata = JSON.parse(await readFile(path.join(objectDirectory, 'metadata.json'), 'utf8')) as { contentType: string; sha256: string };
   await writeFile(path.join(objectDirectory, 'metadata.json'), JSON.stringify({ ...metadata, sha256: '0'.repeat(64) }));
   await assert.rejects(() => store.get(key), /does not match supplied SHA-256/u);
+
+  const replacement = evidence(new TextEncoder().encode('coordinated replacement'));
+  await writeFile(path.join(objectDirectory, 'body'), replacement.body);
+  await writeFile(path.join(objectDirectory, 'metadata.json'), JSON.stringify({ contentType: replacement.contentType, sha256: replacement.sha256 }));
+  await assert.rejects(() => store.get(key), /key does not match evidence SHA-256/u);
 });

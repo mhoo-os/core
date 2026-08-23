@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { verifyEvidenceObject, type EvidenceObject, type EvidenceStore } from './evidence-store';
+import {
+  sha256FromContentAddressedEvidenceKey,
+  verifyEvidenceObjectAtKey,
+  type EvidenceObject,
+  type EvidenceStore,
+} from './evidence-store';
 
 function safeObjectPath(rootDirectory: string, objectKey: string): string {
   const resolvedRoot = path.resolve(rootDirectory);
@@ -19,6 +24,7 @@ export class LocalFilesystemEvidenceStore implements EvidenceStore {
   public constructor(private readonly rootDirectory: string) {}
 
   public async exists(key: string): Promise<boolean> {
+    sha256FromContentAddressedEvidenceKey(key);
     try {
       await stat(safeObjectPath(this.rootDirectory, key));
       return true;
@@ -29,6 +35,7 @@ export class LocalFilesystemEvidenceStore implements EvidenceStore {
   }
 
   public async get(key: string): Promise<EvidenceObject | undefined> {
+    sha256FromContentAddressedEvidenceKey(key);
     const objectDirectory = safeObjectPath(this.rootDirectory, key);
 
     try {
@@ -38,7 +45,7 @@ export class LocalFilesystemEvidenceStore implements EvidenceStore {
       ]);
       const metadata = JSON.parse(encodedMetadata) as Pick<EvidenceObject, 'contentType' | 'sha256'>;
       const object = { body, contentType: metadata.contentType, sha256: metadata.sha256 };
-      verifyEvidenceObject(object);
+      verifyEvidenceObjectAtKey(key, object);
       return object;
     } catch (error: unknown) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
@@ -47,7 +54,7 @@ export class LocalFilesystemEvidenceStore implements EvidenceStore {
   }
 
   public async put(key: string, object: EvidenceObject): Promise<{ created: boolean }> {
-    verifyEvidenceObject(object);
+    verifyEvidenceObjectAtKey(key, object);
     const objectDirectory = safeObjectPath(this.rootDirectory, key);
     const temporaryDirectory = `${objectDirectory}.pending-${randomUUID()}`;
     await mkdir(path.dirname(objectDirectory), { recursive: true });

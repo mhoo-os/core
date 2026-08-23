@@ -26,6 +26,12 @@ export function contentAddressedEvidenceKey(sha256: string): string {
   return `sha256/${sha256}`;
 }
 
+export function sha256FromContentAddressedEvidenceKey(key: string): string {
+  const match = /^sha256\/([a-f0-9]{64})$/u.exec(key);
+  if (!match) throw new Error('Evidence key must be a canonical sha256 content address');
+  return match[1];
+}
+
 export function verifyEvidenceObject(object: EvidenceObject): void {
   if (!(object.body instanceof Uint8Array)) throw new Error('Evidence body must be bytes');
   if (typeof object.sha256 !== 'string') throw new Error('Evidence SHA-256 must be a string');
@@ -35,6 +41,15 @@ export function verifyEvidenceObject(object: EvidenceObject): void {
 
   const actualHash = createHash('sha256').update(object.body).digest('hex');
   if (actualHash !== object.sha256) throw new Error('Evidence body does not match supplied SHA-256');
+}
+
+/** Verifies the immutable body, metadata, and canonical content-addressed key together. */
+export function verifyEvidenceObjectAtKey(key: string, object: EvidenceObject): void {
+  sha256FromContentAddressedEvidenceKey(key);
+  verifyEvidenceObject(object);
+  if (key !== contentAddressedEvidenceKey(object.sha256)) {
+    throw new Error('Evidence key does not match evidence SHA-256');
+  }
 }
 
 /** Stores bytes under their Mhoo-owned immutable content address. */

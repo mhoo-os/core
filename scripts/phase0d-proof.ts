@@ -54,11 +54,17 @@ async function proveContract(label: string, store: EvidenceStore): Promise<void>
   assertProof(await store.exists(key), `${label}: object does not exist after put`);
   assert.equal(await store.get(contentAddressedEvidenceKey('0'.repeat(64))), undefined, `${label}: missing object was returned`);
 
+  const concurrent = evidence(new Uint8Array([77, 10, 255, 2, 1, 0]));
+  const concurrentKey = contentAddressedEvidenceKey(concurrent.sha256);
+  const concurrentResults = await Promise.all(Array.from({ length: 8 }, () => store.put(concurrentKey, concurrent)));
+  assert.equal(concurrentResults.filter((result) => result.created).length, 1, `${label}: concurrent write created duplicate state`);
+  assert.equal(concurrentResults.filter((result) => !result.created).length, 7, `${label}: concurrent duplicate writes were not idempotent`);
+
   const conflicting = evidence(new TextEncoder().encode('different object'));
   await assert.rejects(
     () => store.put(key, conflicting),
-    /immutable and already contains different content/u,
-    `${label}: immutable conflict was accepted`,
+    /key does not match evidence SHA-256/u,
+    `${label}: non-canonical write was accepted`,
   );
   await assert.rejects(
     () => store.put(key, { ...object, sha256: '0'.repeat(64) }),
@@ -91,15 +97,17 @@ async function main(): Promise<void> {
       Key: integrityKey,
       Body: tamperedBody,
       ContentType: original.contentType,
-      Metadata: { sha256: original.sha256 },
+      Metadata: { sha256: evidence(tamperedBody).sha256 },
     }));
-    await assert.rejects(() => s3Store.get(integrityKey), /does not match supplied SHA-256/u, 'minio-s3: tampering was not detected');
-    console.log('PHASE0D_PROOF minio-s3 integrity-complete');
+    await assert.rejects(() => s3Store.get(integrityKey), /key does not match evidence SHA-256/u, 'minio-s3: coordinated tampering was not detected');
+    console.log('PHASE0D_PROOF minio-s3 coordinated-integrity-complete');
     console.log(JSON.stringify({
       verdict: {
         'DETERMINISTIC CONTENT ADDRESS': 'PASS',
+        'CONTENT-ADDRESS BINDING': 'PASS',
         'BYTE-EXACT PUT/GET': 'PASS',
         'IDEMPOTENT DUPLICATE WRITE': 'PASS',
+        'CONCURRENT DUPLICATE WRITE': 'PASS',
         'INTEGRITY VERIFICATION': 'PASS',
         'IMMUTABLE CONFLICT': 'PASS',
         'LOCAL S3 COMPATIBILITY': 'PASS',

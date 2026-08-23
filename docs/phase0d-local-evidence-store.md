@@ -15,10 +15,11 @@ key, and receive a small receipt:
 sha256(body) -> sha256/<64 lowercase hexadecimal characters>
 ```
 
-Each object carries the exact bytes, content type, and SHA-256 metadata. Reads
-recompute the digest; a changed body or hash metadata is rejected. An identical
-second write returns `created: false`. A valid but different object targeting an
-existing key is rejected as an immutable conflict.
+Each object carries the exact bytes, content type, and SHA-256 metadata. The key
+is authoritative: every read and write requires the exact canonical relation
+`key == contentAddressedEvidenceKey(sha256(body))`. Reads recompute the digest;
+a changed body, changed hash metadata, or coordinated body-and-metadata rewrite
+under the old key is rejected. An identical second write returns `created: false`.
 
 There is no tenant decision, authorization, evidence lineage model, generic
 storage framework, or provider registry in this contract. Twenty remains the
@@ -34,8 +35,10 @@ writes reconcile without duplicate state.
 
 `S3EvidenceStore` is the deliberately narrow S3/R2-compatible adapter. It uses
 `HeadObject`, `GetObject`, and `PutObject`; immutable publication uses
-`If-None-Match: *`. A conditional-write conflict is compared byte-for-byte and
-becomes an idempotent duplicate only when metadata and bytes match.
+`If-None-Match: *`. A `412` conditional-write conflict is compared byte-for-byte
+and becomes an idempotent duplicate only when metadata, bytes, and content key
+match. S3's transient `409 ConditionalRequestConflict` is retried as a bounded
+conditional write before any result is accepted.
 
 The executable proof runs the same contract against both adapters. Its S3 target
 is a pinned MinIO container on `127.0.0.1:59000`, with local test-only
@@ -54,8 +57,10 @@ The proof passed locally on 2026-08-24 with this matrix:
 
 ```text
 DETERMINISTIC CONTENT ADDRESS: PASS
+CONTENT-ADDRESS BINDING: PASS
 BYTE-EXACT PUT/GET: PASS
 IDEMPOTENT DUPLICATE WRITE: PASS
+CONCURRENT DUPLICATE WRITE: PASS
 INTEGRITY VERIFICATION: PASS
 IMMUTABLE CONFLICT: PASS
 LOCAL S3 COMPATIBILITY: PASS
