@@ -10,6 +10,7 @@ import { Client, Pool } from 'pg';
 import { listEvidenceForWorkspace, listEvidenceWithoutTenantContext } from '../src/db/core-data';
 import { tenantId, withTenantTransaction } from '../src/db/tenant-context';
 import { DeterministicLocalEmbeddingProvider } from '../src/embedding/deterministic-local-embedding-provider';
+import { contentAddressedEvidenceKey } from '../src/storage/evidence-store';
 import { LocalFilesystemEvidenceStore } from '../src/storage/local-filesystem-evidence-store';
 
 const migratorUrl = process.env.PHASE0_MIGRATOR_DATABASE_URL ?? 'postgres://core_migrator:phase0-migrator-local-only@127.0.0.1:55432/mhoo_core_phase0';
@@ -127,7 +128,7 @@ async function main(): Promise<void> {
     const evidenceStore = new LocalFilesystemEvidenceStore(localDirectory);
     const evidenceBody = new TextEncoder().encode('phase0 immutable local evidence');
     const evidenceHash = createHash('sha256').update(evidenceBody).digest('hex');
-    const evidenceKey = `evidence/${tenantA}/github/${evidenceHash}`;
+    const evidenceKey = contentAddressedEvidenceKey(evidenceHash);
     const created = await evidenceStore.put(evidenceKey, { body: evidenceBody, contentType: 'text/plain', sha256: evidenceHash });
     const duplicate = await evidenceStore.put(evidenceKey, { body: evidenceBody, contentType: 'text/plain', sha256: evidenceHash });
     if (!created.created || duplicate.created || !await evidenceStore.exists(evidenceKey)) throw new Error('Local EvidenceStore idempotency proof failed');

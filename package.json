@@ -15,12 +15,14 @@
     "payload:feasibility": "tsx scripts/payload-feasibility.ts",
     "phase0:proof": "tsx scripts/phase0-proof.ts",
     "phase0b:proof": "tsx scripts/phase0b-proof.ts",
+    "phase0d:proof": "tsx scripts/phase0d-proof.ts",
     "worker": "tsx scripts/phase0b-worker.ts",
     "start": "next start",
     "test": "node --import tsx --test test/unit/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.887.0",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/next": "3.88.0",
     "drizzle-orm": "0.45.2",

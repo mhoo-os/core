@@ -13,3 +13,8 @@ The Phase 0C LlamaIndex.TS transformation-only evaluation is complete and
 recommends rejection. Its spike adapter and dependency were removed from the
 final tree; the immutable evaluation commit is recorded in
 [the evaluation record](../phase0c-llamaindex-evaluation.md).
+
+Phase 0D separately passed a deterministic local-object-store proof with a
+Mhoo-owned `EvidenceStore`, filesystem adapter, and loopback-only MinIO S3
+adapter. It does not configure or prove Cloudflare R2; see
+[the Phase 0D record](../phase0d-local-evidence-store.md).
