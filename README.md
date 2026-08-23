@@ -14,5 +14,9 @@ physical tenant-isolation binding.
 See [Phase 0 foundation](docs/phase0-foundation.md) for the local proof and its
 limits.
 
+[Phase 0B](docs/phase0b-job-runtime.md) selected pg-boss as the Core durable-job
+substrate after transactional enqueue, recovery, RLS, privilege, and connection
+proofs. It is not an ingestion implementation or a workflow-engine mandate.
+
 [Payload feasibility](docs/payload-feasibility.md) records why Payload is not
 used as Core runtime infrastructure.

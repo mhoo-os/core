@@ -58,5 +58,8 @@ Deterministic local embedding PASS != production embedding selection or quality
 
 `phase0:proof` may reset only the dedicated `mhoo_core_phase0` local test
 database. It never contacts Cloudflare, GitHub, Twenty, or another provider.
-The standalone worker proof is intentionally **UNPROVEN** because Payload Jobs
-are not permitted after the feasibility failure.
+
+The prior standalone-worker gap is now closed by the provider-free
+[Phase 0B pg-boss proof](phase0b-job-runtime.md). Payload Jobs remain prohibited
+after the feasibility failure; `pg-boss` is the accepted Core durable-job
+substrate under ADR-0004.

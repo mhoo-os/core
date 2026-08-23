@@ -1,5 +1,10 @@
 # Mhoo Core architecture
 
-Phase 0 implements only local tenant-isolation, job, evidence-store, and vector
-plumbing. It does not transfer production authority. See
-[the foundation proof](../phase0-foundation.md).
+Phase 0 implements only local tenant-isolation, evidence-store, vector, and
+durable-job plumbing. The accepted worker runtime is pg-boss: same Core source
+and image, separate API and worker processes, separate queue and tenant-data
+pools, migration-role schema installation, and explicit transaction-local tenant
+context. See [the Phase 0B runtime proof](../phase0b-job-runtime.md).
+
+This does not transfer production authority or implement a Knowledge connector,
+MCP retrieval, LlamaIndex, R2, production embeddings, or LangGraph.
