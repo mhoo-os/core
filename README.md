@@ -18,5 +18,8 @@ limits.
 substrate after transactional enqueue, recovery, RLS, privilege, and connection
 proofs. It is not an ingestion implementation or a workflow-engine mandate.
 
+[Phase 0C](docs/phase0c-llamaindex-evaluation.md) evaluated LlamaIndex.TS as a
+transformation-only dependency and recommends rejection before real ingestion.
+
 [Payload feasibility](docs/payload-feasibility.md) records why Payload is not
 used as Core runtime infrastructure.
