@@ -131,6 +131,22 @@ begin
      or not core.evidence_lifecycle_transition_is_legal(tip.current_state, new.new_lifecycle_state) then
     raise exception 'Evidence lifecycle event is not a valid successor of the current tip';
   end if;
+  if new.causation_event_id is not null then
+    perform 1 from core.evidence_provenance_events
+      where provenance_event_id = new.causation_event_id
+        and tenant_id = new.tenant_id;
+    if not found then
+      raise exception 'Evidence event causation reference must resolve within the tenant';
+    end if;
+  end if;
+  if new.related_evidence_id is not null then
+    perform 1 from core.evidence_records
+      where evidence_id = new.related_evidence_id
+        and tenant_id = new.tenant_id;
+    if not found then
+      raise exception 'Evidence event related evidence reference must resolve within the tenant';
+    end if;
+  end if;
   if new.new_lifecycle_state = 'superseded' then
     select * into replacement
       from core.evidence_lifecycle_heads

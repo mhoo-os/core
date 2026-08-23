@@ -54,6 +54,13 @@ export type ValidateAndRecordInput = {
 
 export type EvidenceResult = { evidenceId: string; eventId: string; state: LifecycleState; sequence: number; created: boolean };
 
+class CustodyValidationError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'CustodyValidationError';
+  }
+}
+
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 
 function canonicalJson(value: unknown): string {
@@ -176,12 +183,17 @@ function legalTransition(prior: LifecycleState, next: LifecycleState): boolean {
 
 async function verifyReceipt(store: EvidenceStore, receipt: { contentKey: string; contentSha256: string; contentType: string; byteSize: number }): Promise<void> {
   const object = await store.get(receipt.contentKey);
-  if (!object) throw new Error('Evidence object is absent from the configured store');
-  verifyEvidenceObjectAtKey(receipt.contentKey, object);
+  if (!object) throw new CustodyValidationError('Evidence object is absent from the configured store');
+  try {
+    verifyEvidenceObjectAtKey(receipt.contentKey, object);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Evidence object integrity check failed';
+    throw new CustodyValidationError(detail);
+  }
   if (receipt.contentKey !== contentAddressedEvidenceKey(object.sha256)
     || receipt.contentSha256 !== object.sha256
     || receipt.contentType !== object.contentType
-    || receipt.byteSize !== object.body.byteLength) throw new Error('Evidence receipt does not match the immutable object');
+    || receipt.byteSize !== object.body.byteLength) throw new CustodyValidationError('Evidence receipt does not match the immutable object');
 }
 
 async function findRetriedTransition(client: PoolClient, tenantId: TenantId, input: TransitionInput): Promise<EvidenceResult | undefined> {
@@ -249,6 +261,14 @@ async function appendTransition(client: PoolClient, tenantId: TenantId, input: T
   const current = head.rows[0]!;
   if (current.current_event_id !== input.expectedPredecessorEventId || current.current_state !== input.expectedPriorState) throw new Error('Evidence lifecycle conflict: stale predecessor or prior state');
   if (!legalTransition(current.current_state, input.newState)) throw new Error('Evidence lifecycle transition is not legal');
+  if (input.causationEventId) {
+    const causation = await client.query('select 1 from core.evidence_provenance_events where provenance_event_id = $1 and tenant_id = $2', [input.causationEventId, tenantId]);
+    if (causation.rowCount !== 1) throw new Error('Evidence event causation reference must resolve within the tenant');
+  }
+  if (input.relatedEvidenceId) {
+    const related = await client.query('select 1 from core.evidence_records where evidence_id = $1 and tenant_id = $2', [input.relatedEvidenceId, tenantId]);
+    if (related.rowCount !== 1) throw new Error('Evidence event related evidence reference must resolve within the tenant');
+  }
   if (input.newState === 'superseded') {
     if (!input.relatedEvidenceId) throw new Error('Superseded evidence requires replacement evidence');
     const replacement = await client.query<{ evidence_id: string; current_state: LifecycleState }>('select evidence_id, current_state from core.evidence_lifecycle_heads where evidence_id = $1 and tenant_id = $2 for share', [input.relatedEvidenceId, tenantId]);
@@ -293,13 +313,14 @@ export async function validateAndRecordEvidence(pool: Pool, store: EvidenceStore
         'select content_key, content_sha256, content_type, byte_size, twenty_workspace_id_reference, source_system, external_object_id, acquisition_mechanism from core.evidence_records where evidence_id = $1',
         [input.evidenceId],
       );
-      if (record.rowCount !== 1) throw new Error('Evidence record is absent');
+      if (record.rowCount !== 1) throw new CustodyValidationError('Evidence record is absent');
       const observation = record.rows[0]!;
-      if (!observation.source_system || !observation.external_object_id || !observation.acquisition_mechanism) throw new Error('Evidence provenance is structurally invalid');
+      if (!observation.source_system || !observation.external_object_id || !observation.acquisition_mechanism) throw new CustodyValidationError('Evidence provenance is structurally invalid');
       const binding = await client.query('select 1 from core.workspace_bindings where tenant_id = $1 and twenty_workspace_id = $2', [tenantId, observation.twenty_workspace_id_reference]);
-      if (binding.rowCount !== 1) throw new Error('Trusted tenant-to-Workspace binding is absent');
+      if (binding.rowCount !== 1) throw new CustodyValidationError('Trusted tenant-to-Workspace binding is absent');
       await verifyReceipt(store, { contentKey: observation.content_key, contentSha256: observation.content_sha256, contentType: observation.content_type, byteSize: Number(observation.byte_size) });
     } catch (error) {
+      if (!(error instanceof CustodyValidationError)) throw error;
       const detail = error instanceof Error ? error.message : 'Unknown custody validation failure';
       return appendTransition(client, tenantId, { ...transition, newState: 'invalidated', reason: { code: 'receipt-validation-failed', detail, sourceClaim: null } });
     }

@@ -1,6 +1,6 @@
 # Phase 0E: evidence model and provenance ledger design
 
-- Status: Proposed design; no runtime or schema implementation
+- Status: Accepted design; implemented by Phase 0F
 - Purpose: define the minimum custody contract that can sit above the immutable
   content-addressed object proved in Phase 0D
 
