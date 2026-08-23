@@ -27,7 +27,7 @@ create table if not exists core.evidence_records (
   creation_idempotency_key text not null,
   creation_payload_sha256 char(64) not null check (creation_payload_sha256 ~ '^[a-f0-9]{64}$'),
   initial_provenance_event_id char(64) not null check (initial_provenance_event_id ~ '^[a-f0-9]{64}$'),
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default date_trunc('milliseconds', now()),
   check (content_key = 'sha256/' || content_sha256),
   unique (tenant_id, acquisition_mechanism, creation_idempotency_key)
 );
@@ -62,6 +62,7 @@ create table if not exists core.evidence_provenance_events (
 );
 
 alter table core.evidence_provenance_events alter column recorded_at drop default;
+alter table core.evidence_records alter column created_at set default date_trunc('milliseconds', now());
 
 do $$
 declare
@@ -108,6 +109,24 @@ drop policy if exists evidence_heads_tenant_isolation on core.evidence_lifecycle
 create policy evidence_heads_tenant_isolation on core.evidence_lifecycle_heads using (tenant_id = nullif(current_setting('app.current_tenant_id', true), '')::uuid) with check (tenant_id = nullif(current_setting('app.current_tenant_id', true), '')::uuid);
 
 create or replace function core.reject_evidence_ledger_mutation() returns trigger language plpgsql as $$ begin raise exception 'Evidence records and provenance events are append-only'; end $$;
+create or replace function core.validate_evidence_millisecond_timestamps() returns trigger language plpgsql as $$
+begin
+  if tg_table_name = 'evidence_records' then
+    if mod(extract(microseconds from new.acquired_at)::numeric, 1000) <> 0
+       or mod(extract(microseconds from new.observed_at)::numeric, 1000) <> 0
+       or (new.source_created_at is not null and mod(extract(microseconds from new.source_created_at)::numeric, 1000) <> 0)
+       or (new.source_updated_at is not null and mod(extract(microseconds from new.source_updated_at)::numeric, 1000) <> 0)
+       or mod(extract(microseconds from new.created_at)::numeric, 1000) <> 0 then
+      raise exception 'Evidence timestamps must use millisecond precision';
+    end if;
+  elsif tg_table_name = 'evidence_provenance_events' then
+    if (new.event_occurred_at is not null and mod(extract(microseconds from new.event_occurred_at)::numeric, 1000) <> 0)
+       or mod(extract(microseconds from new.recorded_at)::numeric, 1000) <> 0 then
+      raise exception 'Evidence timestamps must use millisecond precision';
+    end if;
+  end if;
+  return new;
+end $$;
 create or replace function core.evidence_lifecycle_transition_is_legal(prior_state text, next_state text) returns boolean language sql immutable as $$
   select (prior_state = 'observed' and next_state in ('recorded', 'invalidated'))
       or (prior_state = 'recorded' and next_state in ('superseded', 'retracted', 'invalidated'))
@@ -215,8 +234,12 @@ end $$;
 
 drop trigger if exists evidence_records_append_only on core.evidence_records;
 create trigger evidence_records_append_only before update or delete on core.evidence_records for each row execute function core.reject_evidence_ledger_mutation();
+drop trigger if exists evidence_records_validate_timestamps on core.evidence_records;
+create trigger evidence_records_validate_timestamps before insert on core.evidence_records for each row execute function core.validate_evidence_millisecond_timestamps();
 drop trigger if exists evidence_events_append_only on core.evidence_provenance_events;
 create trigger evidence_events_append_only before update or delete on core.evidence_provenance_events for each row execute function core.reject_evidence_ledger_mutation();
+drop trigger if exists evidence_events_validate_timestamps on core.evidence_provenance_events;
+create trigger evidence_events_validate_timestamps before insert on core.evidence_provenance_events for each row execute function core.validate_evidence_millisecond_timestamps();
 drop trigger if exists evidence_events_validate_successor on core.evidence_provenance_events;
 create trigger evidence_events_validate_successor before insert on core.evidence_provenance_events for each row execute function core.validate_evidence_provenance_event();
 drop trigger if exists evidence_heads_validate_projection on core.evidence_lifecycle_heads;
