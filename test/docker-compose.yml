@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_DB: mhoo_core_phase0
+      POSTGRES_PASSWORD: phase0-migrator-local-only
+      POSTGRES_USER: core_migrator
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U core_migrator -d mhoo_core_phase0"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - phase0-postgres:/var/lib/postgresql
+
+volumes:
+  phase0-postgres:
+    name: mhoo-core-phase0-postgres
