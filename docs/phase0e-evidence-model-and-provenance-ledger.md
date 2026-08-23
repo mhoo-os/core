@@ -65,16 +65,28 @@ creation_idempotency_key
 initial_provenance_event_id
 ```
 
-`content_key`, `content_sha256`, content type, and byte size are an immutable
-storage receipt. They must be checked against the Phase 0D object before the
-observation is recorded. Source fields are an immutable snapshot of the claim
-available at observation time. Missing source data stays explicitly absent or
-unknown; Core must not substitute `now()` or a guessed URI for source facts.
+`content_key`, `content_sha256`, content type, and byte size are the claimed
+storage receipt at observation time. They must be verified against the Phase 0D
+object before the observation becomes `recorded`. Source fields are an immutable
+snapshot of the claim available at observation time. Missing source data stays
+explicitly absent or unknown; Core must not substitute `now()` or a guessed URI
+for source facts.
 
 The creation idempotency key is supplied by the observer from a stable external
-delivery/receipt identifier or a Core command token. It is scoped by tenant and
-acquisition mechanism. A second independent observation may reference the same
-content address but has a new idempotency key and a distinct `evidence_id`.
+delivery/receipt identifier or a Core command token. Its identity is exactly
+`(tenant_id, acquisition_mechanism, creation_idempotency_key)`. Phase 0F must
+store a versioned canonical hash of the complete initial observation input,
+excluding generated `evidence_id`, as `creation_payload_sha256`.
+Its preimage is `mhoo.evidence.creation-payload.v1` plus RFC 8785 canonical JSON
+with the same UTC timestamp and explicit-null rules used for ledger payloads
+below.
+
+If the same creation identity arrives with the same payload hash, Core returns
+the original Evidence record. If it arrives with a different content receipt,
+source provenance, timestamp claim, or other immutable observation field, Core
+must fail with an idempotency-integrity conflict; it must not silently return the
+earlier record. A second independent observation may reference the same content
+address but has a new idempotency key and a distinct `evidence_id`.
 
 ## 2. Source provenance
 
@@ -102,10 +114,12 @@ The normal evidence lifecycle is:
 observed -> recorded -> superseded | retracted | invalidated
 ```
 
-- **observed** — Core has an immutable object receipt and source snapshot, but
-  the observation has not yet become a referenceable recorded artifact.
-- **recorded** — integrity, tenant binding, and minimum provenance are present;
-  later Core facts may cite this Evidence record.
+- **observed** — Core has acquired bytes and persisted the claimed content
+  receipt and source snapshot, but it is not yet referenceable by later facts.
+- **recorded** — the Phase 0D content key/digest/body contract has been checked,
+  byte size and content type agree, the trusted tenant-to-Workspace binding is
+  present, minimum provenance is structurally valid, and creation idempotency
+  has passed. Later Core facts may cite this Evidence record.
 - **superseded** — a later recorded Evidence record is the newer observation
   for the stated source relationship. Superseded does not mean false.
 - **retracted** — the source or observer reports withdrawal; the event records
@@ -114,10 +128,22 @@ observed -> recorded -> superseded | retracted | invalidated
   reason not to rely on the record. This is not a claim to own the provider's
   fact.
 
+The only legal lifecycle transitions are:
+
+```text
+observed   -> recorded | invalidated
+recorded   -> superseded | retracted | invalidated
+superseded -> retracted | invalidated
+retracted  -> invalidated
+invalidated -> (none)
+```
+
 Evidence bytes and their initial observation snapshot are never overwritten.
-Current lifecycle state is a projection of the ordered provenance events, not a
-mutable replacement for history. Every transition includes a prior state and a
-new state, and `superseded` must link to the replacement `evidence_id`.
+Current lifecycle state is a projection of a single deterministic per-Evidence
+event chain, not a mutable replacement for history. `observed -> recorded` is
+therefore the explicit validation boundary above; there is no implicit state
+promotion. Every transition includes a prior state and a new state, and
+`superseded` must link to the replacement `evidence_id`.
 
 Logical retirement is therefore distinct from physical retention. Retraction,
 invalidation, and supersession retain the observation. A future retention policy
@@ -140,6 +166,9 @@ provenance_event_id                 # deterministic SHA-256 identity
 evidence_id
 tenant_id
 event_type
+
+lifecycle_sequence                  # starts at 1 and increases by exactly 1
+predecessor_event_id                 # null only for the initial observed event
 
 idempotency_key
 event_occurred_at                   # source/process occurrence when known
@@ -167,13 +196,25 @@ receipt snapshot. Later events retain the typed reason or source claim needed to
 explain the transition; they do not mutate that initial event or silently
 replace metadata.
 
-The deterministic event identity is calculated from canonical, delimiter-safe
-encoding of:
+`predecessor_event_id` and `lifecycle_sequence` form the required lifecycle
+chain. `causation_event_id` is a separate optional explanatory link and cannot
+be used as an ordering substitute. Phase 0F must atomically compare an append
+command's expected predecessor and prior state with the current tip, then append
+exactly one successor. It must enforce one event per
+`(evidence_id, lifecycle_sequence)` and at most one successor per predecessor.
+Two concurrent commands against the same tip cannot both commit; the loser must
+receive a conflict and re-read the tip. `recorded_at` is an audit timestamp only
+and must never determine lifecycle order.
+
+The deterministic event identity is calculated from a versioned, delimiter-safe
+length-prefixed UTF-8 encoding of:
 
 ```text
 "mhoo.evidence.provenance-event.v1"
 tenant_id
 evidence_id
+predecessor_event_id
+lifecycle_sequence
 event_type
 actor_kind
 actor_reference
@@ -183,7 +224,17 @@ idempotency_key
 Wall-clock timestamps and retry attempt numbers are deliberately excluded from
 that identity. A retry with the same identity returns the existing event; the
 same identity with a different canonical event payload is an integrity conflict,
-not an update. `event_payload_sha256` covers the immutable complete event body.
+not an update.
+
+`event_payload_sha256` is calculated from
+`mhoo.evidence.provenance-event-payload.v1` plus a canonical JSON (RFC 8785)
+encoding of every immutable event field **except** `event_payload_sha256`
+itself. Timestamps are normalized to RFC 3339 UTC strings, nullable fields are
+present with explicit `null`, and typed-reason fields use fixed names rather
+than free-form serialized objects. `provenance_event_id` is included in this
+payload preimage because its value is already independently derived by the
+identity encoding above. This makes both encodings non-self-referential and
+reproducible.
 
 The ledger is append-only within Core's normal runtime boundary: Phase 0F must
 disallow application updates/deletes and allow only controlled append paths.
@@ -226,9 +277,15 @@ Phase 0E passes only when a review can walk representative records and prove:
 - the same source object at two revisions produces distinct observations with
   preserved revision provenance;
 - a retried observation or lifecycle command returns the same deterministic
-  event and does not duplicate history;
+  event and does not duplicate history, while the same idempotency identity
+  with different immutable input fails;
 - a body-and-metadata mismatch to the content address is rejected before an
-  Evidence record is recorded;
+  Evidence observation becomes `recorded`;
+- concurrent transitions from the same predecessor produce one successor only,
+  with lifecycle order derived from predecessor/sequence rather than timestamps;
+- an `observed` item becomes `recorded` only after the explicit content,
+  tenant-binding, provenance, and idempotency validations above, while a failed
+  validation has only the legal `observed -> invalidated` outcome;
 - supersession, retraction, and invalidation append explanations without
   deleting bytes or erasing prior state; and
 - all five reconstruction questions above can be answered from the proposed
