@@ -10,5 +10,6 @@ This does not transfer production authority or implement a Knowledge connector,
 MCP retrieval, LlamaIndex, R2, production embeddings, or LangGraph.
 
 The Phase 0C LlamaIndex.TS transformation-only evaluation is complete and
-recommends rejection; its isolated adapter is review evidence, not an adopted
-Core dependency. See [the evaluation record](../phase0c-llamaindex-evaluation.md).
+recommends rejection. Its spike adapter and dependency were removed from the
+final tree; the immutable evaluation commit is recorded in
+[the evaluation record](../phase0c-llamaindex-evaluation.md).

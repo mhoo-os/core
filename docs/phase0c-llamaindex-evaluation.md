@@ -1,7 +1,7 @@
 # Phase 0C: LlamaIndex.TS transformation-only evaluation
 
 - Evaluation commit: `8245589f01d970bd9730d60206a5686b59230e9f`
-- Date: 2026-08-24
+- Date: 2026-08-23
 - LlamaIndex.TS: `llamaindex@0.12.1`
 - Recommendation: **REJECT**
 
@@ -75,17 +75,15 @@ the contract, IDs, metadata, breadcrumb policy, canonical hashing, and every
 persistence boundary. The native baseline matched the evaluated fixture chunk
 counts and required no new framework dependency.
 
-Therefore LlamaIndex owns nothing in Core product code. The adapter and pinned
-dependency exist only as reproducible Phase 0C evaluation evidence on its
-review branch; remove them before a real ingestion phase begins. Phase 0C did
-not create a generic parser framework, pipeline DSL, provider abstraction,
-workflow primitive, or plugin system.
+Therefore LlamaIndex owns nothing in Core product code. The adapter, fixtures,
+tests, evaluator, and pinned dependency are retained only in immutable
+evaluation commit `8245589f01d970bd9730d60206a5686b59230e9f`; this closure
+commit removes them from the final tree before any real ingestion work begins.
+Phase 0C did not create a generic parser framework, pipeline DSL, provider
+abstraction, workflow primitive, or plugin system.
 
 ## Reproduce
 
 ```bash
-pnpm test
-pnpm typecheck
-pnpm build
-pnpm phase0c:evaluate
+git show 8245589f01d970bd9730d60206a5686b59230e9f
 ```
