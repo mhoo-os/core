@@ -18,3 +18,8 @@ Phase 0D separately passed a deterministic local-object-store proof with a
 Mhoo-owned `EvidenceStore`, filesystem adapter, and loopback-only MinIO S3
 adapter. It does not configure or prove Cloudflare R2; see
 [the Phase 0D record](../phase0d-local-evidence-store.md).
+
+Phase 0E is a design-only contract for evidence observation metadata and an
+append-only provenance ledger. It permits no schema, lifecycle runtime,
+connector, retrieval, embedding, MCP, agent, or workflow implementation; see
+[the Phase 0E design](../phase0e-evidence-model-and-provenance-ledger.md).
