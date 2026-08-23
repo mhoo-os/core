@@ -33,7 +33,7 @@ create table if not exists core.evidence_provenance_events (
   predecessor_event_id char(64),
   idempotency_key text not null,
   event_occurred_at timestamptz,
-  recorded_at timestamptz not null default now(),
+  recorded_at timestamptz not null,
   actor_kind text not null check (actor_kind in ('connector', 'importer', 'core_process', 'retention_policy')),
   actor_reference text not null,
   actor_version text not null,
@@ -49,10 +49,30 @@ create table if not exists core.evidence_provenance_events (
   check ((lifecycle_sequence = 1) = (predecessor_event_id is null)),
   check ((lifecycle_sequence = 1) = (event_type = 'evidence.observed')),
   check (event_type = 'evidence.' || new_lifecycle_state),
-  check ((new_lifecycle_state = 'superseded') = (related_evidence_id is not null)),
   unique (evidence_id, lifecycle_sequence),
   unique (evidence_id, predecessor_event_id)
 );
+
+alter table core.evidence_provenance_events alter column recorded_at drop default;
+
+do $$
+declare
+  constraint_name text;
+begin
+  for constraint_name in
+    select conname
+    from pg_constraint
+    where conrelid = 'core.evidence_provenance_events'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) like '%new_lifecycle_state%'
+      and pg_get_constraintdef(oid) like '%related_evidence_id%'
+  loop
+    execute format('alter table core.evidence_provenance_events drop constraint %I', constraint_name);
+  end loop;
+  alter table core.evidence_provenance_events
+    add constraint evidence_events_supersession_replacement_check
+    check (new_lifecycle_state <> 'superseded' or related_evidence_id is not null);
+end $$;
 
 create table if not exists core.evidence_lifecycle_heads (
   evidence_id uuid primary key references core.evidence_records (evidence_id),
@@ -90,6 +110,7 @@ $$;
 create or replace function core.validate_evidence_provenance_event() returns trigger language plpgsql as $$
 declare
   tip core.evidence_lifecycle_heads%rowtype;
+  replacement core.evidence_lifecycle_heads%rowtype;
 begin
   if new.lifecycle_sequence = 1 then
     if new.tenant_id is distinct from (select tenant_id from core.evidence_records where evidence_id = new.evidence_id)
@@ -109,6 +130,18 @@ begin
      or tip.current_state <> new.prior_lifecycle_state
      or not core.evidence_lifecycle_transition_is_legal(tip.current_state, new.new_lifecycle_state) then
     raise exception 'Evidence lifecycle event is not a valid successor of the current tip';
+  end if;
+  if new.new_lifecycle_state = 'superseded' then
+    select * into replacement
+      from core.evidence_lifecycle_heads
+      where evidence_id = new.related_evidence_id
+        and tenant_id = new.tenant_id
+      for share;
+    if not found
+       or replacement.evidence_id = new.evidence_id
+       or replacement.current_state <> 'recorded' then
+      raise exception 'Superseded evidence requires a same-tenant recorded replacement evidence';
+    end if;
   end if;
   return new;
 end $$;
