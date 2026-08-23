@@ -14,7 +14,9 @@ import { LocalFilesystemEvidenceStore } from '../src/storage/local-filesystem-ev
 
 const migratorUrl = process.env.PHASE0_MIGRATOR_DATABASE_URL ?? 'postgres://core_migrator:phase0-migrator-local-only@127.0.0.1:55432/mhoo_core_phase0';
 const password = randomBytes(24).toString('base64url');
+const recorderPassword = randomBytes(24).toString('base64url');
 const apiUrl = `postgres://core_api:${password}@127.0.0.1:55432/mhoo_core_phase0`;
+const recorderUrl = `postgres://core_recorder:${recorderPassword}@127.0.0.1:55432/mhoo_core_phase0`;
 const a = tenantId('11111111-1111-4111-8111-111111111111');
 const b = tenantId('22222222-2222-4222-8222-222222222222');
 
@@ -34,9 +36,10 @@ async function migrate(): Promise<void> {
   try {
     await client.query('drop schema if exists pgboss cascade');
     await client.query('drop schema if exists core cascade');
-    for (const role of ['core_api', 'core_worker', 'core_runtime']) await client.query(`drop role if exists ${role}`);
+    for (const role of ['core_api', 'core_worker', 'core_runtime', 'core_recorder']) await client.query(`drop role if exists ${role}`);
     for (const file of ['0001_phase0_core.sql', '0002_phase0_runtime_role.sql', '0003_phase0b_runtime_roles.sql', '0004_phase0b_mock_ingestion.sql', '0006_phase0f_evidence_ledger.sql']) await client.query(await readFile(path.join(process.cwd(), 'db/migrations', file), 'utf8'));
     await client.query(`alter role core_api login password '${password}'`);
+    await client.query(`alter role core_recorder login password '${recorderPassword}'`);
     await client.query('insert into core.workspace_bindings (tenant_id, twenty_workspace_id) values ($1,$2),($3,$4)', [a, 'workspace-a', b, 'workspace-b']);
   } finally { await client.end(); }
 }
@@ -50,30 +53,40 @@ async function main(): Promise<void> {
   const revisedBody = new TextEncoder().encode('phase0f immutable evidence revision two');
   const revisedReceipt = await putContentAddressedEvidence(store, { body: revisedBody, contentType: 'text/plain', sha256: createHash('sha256').update(revisedBody).digest('hex') });
   const pool = new Pool({ connectionString: apiUrl, max: 4 });
+  const recorderPool = new Pool({ connectionString: recorderUrl, max: 2 });
   const input: ObservationInput = { tenantId: a, twentyWorkspaceIdReference: 'workspace-a', contentKey: receipt.key, contentType: 'text/plain', byteSize: body.byteLength, sourceSystem: 'fixture', sourceInstanceReference: 'fixture-a', externalObjectId: 'source-a', sourceRevision: 'r1', acquisitionMechanism: 'phase0f-proof', acquiredAt: '2026-08-23T00:00:00.000Z', observedAt: '2026-08-23T00:00:01.000Z', creationIdempotencyKey: 'delivery-a', actor: { kind: 'core_process', reference: 'phase0f-proof', version: '1' } };
   try {
+    await withTenantTransaction(pool, a, async (client) => {
+      await client.query('savepoint initial_reference_attack');
+      await client.query(`insert into core.evidence_records (evidence_id,tenant_id,twenty_workspace_id_reference,content_key,content_sha256,content_type,byte_size,source_system,external_object_id,acquisition_mechanism,acquired_at,observed_at,creation_idempotency_key,creation_payload_sha256,initial_provenance_event_id) values ('55555555-5555-4555-8555-555555555555',$1,'workspace-a',$2,$3,'text/plain',$4,'fixture','raw-initial-reference','phase0f-proof','2026-08-23T00:00:00.000Z','2026-08-23T00:00:01.000Z','raw-initial-reference',$5,$6)`, [a, receipt.key, receipt.sha256, body.byteLength, '0'.repeat(64), 'a'.repeat(64)]);
+      await assert.rejects(() => client.query(`insert into core.evidence_provenance_events (provenance_event_id,evidence_id,tenant_id,event_type,lifecycle_sequence,predecessor_event_id,idempotency_key,event_occurred_at,recorded_at,actor_kind,actor_reference,actor_version,execution_reference,prior_lifecycle_state,new_lifecycle_state,causation_event_id,related_evidence_id,external_cause_reference,correlation_reference,provenance_snapshot_or_typed_reason,event_payload_sha256) values ($1,'55555555-5555-4555-8555-555555555555',$2,'evidence.observed',1,null,'raw-initial-reference','2026-08-23T00:00:01.000Z','2026-08-23T00:00:02.000Z','core_process','phase0f-proof','1',null,null,'observed',$3,$4,null,null,'{}'::jsonb,$5)`, ['a'.repeat(64), a, 'c'.repeat(64), '44444444-4444-4444-8444-444444444444', '0'.repeat(64)]), /Initial evidence event does not match/u);
+      await client.query('rollback to savepoint initial_reference_attack');
+    });
     const creationRace = await Promise.all(Array.from({ length: 8 }, () => createObservedEvidence(pool, input)));
     const observed = creationRace.find((result) => result.created)!;
     proof(creationRace.filter((result) => result.created).length === 1 && new Set(creationRace.map((result) => result.evidenceId)).size === 1, 'Concurrent creation idempotency failed');
     const duplicate = await createObservedEvidence(pool, { ...input, acquiredAt: '2026-08-23T07:00:00.000+07:00', observedAt: '2026-08-23T07:00:01.000+07:00' });
     proof(observed.created && !duplicate.created && observed.evidenceId === duplicate.evidenceId, 'Creation idempotency failed');
     await assert.rejects(() => createObservedEvidence(pool, { ...input, acquiredAt: 'not-a-timestamp' }), /RFC 3339/u);
+    await assert.rejects(() => createObservedEvidence(pool, { ...input, acquiredAt: '2026-02-30T00:00:00Z' }), /RFC 3339/u);
+    await assert.rejects(() => createObservedEvidence(pool, { ...input, observedAt: '2026-08-23T00:00:01.123456Z' }), /at most millisecond precision/u);
+    await assert.rejects(() => createObservedEvidence(pool, { ...input, observedAt: '2026-08-23T00:00:01.123499Z' }), /at most millisecond precision/u);
     await assert.rejects(() => createObservedEvidence(pool, { ...input, actor: { ...input.actor, reference: 'changed-initial-actor' } }), /idempotency integrity conflict/u);
     const forgedReceiptStore: EvidenceStore = { exists: async () => true, get: async () => ({ body: new TextEncoder().encode('forged receipt bytes'), contentType: input.contentType, sha256: receipt.sha256 }), put: async () => ({ created: false }) };
     const forgedObserved = await createObservedEvidence(pool, { ...input, creationIdempotencyKey: 'delivery-forged' });
-    const forgedInvalidated = await validateAndRecordEvidence(pool, forgedReceiptStore, a, { evidenceId: forgedObserved.evidenceId, expectedPredecessorEventId: forgedObserved.eventId, idempotencyKey: 'validate-forged', actor: input.actor });
+    const forgedInvalidated = await validateAndRecordEvidence(recorderPool, forgedReceiptStore, a, { evidenceId: forgedObserved.evidenceId, expectedPredecessorEventId: forgedObserved.eventId, idempotencyKey: 'validate-forged', actor: input.actor });
     proof(forgedObserved.state === 'observed' && forgedInvalidated.state === 'invalidated' && forgedInvalidated.sequence === 2, 'Failed receipt validation did not retain observed custody then invalidate it');
     const metadataMismatch = await createObservedEvidence(pool, { ...input, contentType: 'application/json', creationIdempotencyKey: 'delivery-metadata-mismatch' });
-    const metadataInvalidated = await validateAndRecordEvidence(pool, store, a, { evidenceId: metadataMismatch.evidenceId, expectedPredecessorEventId: metadataMismatch.eventId, idempotencyKey: 'validate-metadata-mismatch', actor: input.actor });
+    const metadataInvalidated = await validateAndRecordEvidence(recorderPool, store, a, { evidenceId: metadataMismatch.evidenceId, expectedPredecessorEventId: metadataMismatch.eventId, idempotencyKey: 'validate-metadata-mismatch', actor: input.actor });
     proof(metadataInvalidated.state === 'invalidated', 'Content metadata mismatch did not invalidate the observed custody record');
     const temporarilyUnavailable = await createObservedEvidence(pool, { ...input, externalObjectId: 'source-temporarily-unavailable', creationIdempotencyKey: 'delivery-temporarily-unavailable' });
     const unavailableStore: EvidenceStore = { exists: async () => true, get: async () => { throw new Error('temporary store unavailable'); }, put: async () => ({ created: false }) };
-    await assert.rejects(() => validateAndRecordEvidence(pool, unavailableStore, a, { evidenceId: temporarilyUnavailable.evidenceId, expectedPredecessorEventId: temporarilyUnavailable.eventId, idempotencyKey: 'record-temporarily-unavailable', actor: input.actor }), /temporary store unavailable/u);
+    await assert.rejects(() => validateAndRecordEvidence(recorderPool, unavailableStore, a, { evidenceId: temporarilyUnavailable.evidenceId, expectedPredecessorEventId: temporarilyUnavailable.eventId, idempotencyKey: 'record-temporarily-unavailable', actor: input.actor }), /temporary store unavailable/u);
     await withTenantTransaction(pool, a, async (client) => {
       const custody = await reconstructEvidence(client, temporarilyUnavailable.evidenceId);
       proof(custody.head.current_state === 'observed' && custody.events.length === 1, 'Temporary store failure advanced the evidence lifecycle');
     });
-    const temporarilyUnavailableRecorded = await validateAndRecordEvidence(pool, store, a, { evidenceId: temporarilyUnavailable.evidenceId, expectedPredecessorEventId: temporarilyUnavailable.eventId, idempotencyKey: 'record-temporarily-unavailable', actor: input.actor });
+    const temporarilyUnavailableRecorded = await validateAndRecordEvidence(recorderPool, store, a, { evidenceId: temporarilyUnavailable.evidenceId, expectedPredecessorEventId: temporarilyUnavailable.eventId, idempotencyKey: 'record-temporarily-unavailable', actor: input.actor });
     proof(temporarilyUnavailableRecorded.state === 'recorded', 'Healthy retry did not record evidence after operational failure');
     const rejectDanglingDatabaseReference = async (eventId: string, causationEventId: string | null, relatedEvidenceId: string | null, pattern: RegExp) => withTenantTransaction(pool, a, async (client) => {
       const insertEvent = (eventId: string, causationEventId: string | null, relatedEvidenceId: string | null) => client.query(
@@ -95,15 +108,21 @@ async function main(): Promise<void> {
       await assert.rejects(() => client.query('update core.evidence_lifecycle_heads set current_state = $1 where evidence_id = $2', ['recorded', observed.evidenceId]), /lifecycle head does not match/u);
     });
 
+    await withTenantTransaction(pool, a, async (client) => {
+      await client.query('savepoint raw_recorded_bypass');
+      await assert.rejects(() => client.query(`insert into core.evidence_provenance_events (provenance_event_id,evidence_id,tenant_id,event_type,lifecycle_sequence,predecessor_event_id,idempotency_key,event_occurred_at,recorded_at,actor_kind,actor_reference,actor_version,execution_reference,prior_lifecycle_state,new_lifecycle_state,provenance_snapshot_or_typed_reason,event_payload_sha256) values ($1,$2,$3,'evidence.recorded',2,$4,'raw-recorded-bypass',null,'2026-08-23T00:00:02.000Z','core_process','phase0f-proof','1',null,'observed','recorded','{}'::jsonb,$5)`, ['b'.repeat(64), observed.evidenceId, a, observed.eventId, '0'.repeat(64)]), /core_recorder boundary/u);
+      await client.query('rollback to savepoint raw_recorded_bypass');
+    });
+
     await assert.rejects(() => appendEvidenceTransition(pool, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, expectedPriorState: 'observed', newState: 'recorded', idempotencyKey: 'record-a', actor: input.actor, reason: { code: 'receipt-validated', detail: null, sourceClaim: null } }), /requires validateAndRecordEvidence/u);
-    const recorded = await validateAndRecordEvidence(pool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: input.actor });
-    const retried = await validateAndRecordEvidence(pool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: input.actor });
+    const recorded = await validateAndRecordEvidence(recorderPool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: input.actor });
+    const retried = await validateAndRecordEvidence(recorderPool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: input.actor });
     proof(recorded.created && !retried.created, 'Transition idempotency failed');
-    await assert.rejects(() => validateAndRecordEvidence(pool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: { ...input.actor, executionReference: 'changed-record-retry' } }), /idempotency integrity conflict/u);
+    await assert.rejects(() => validateAndRecordEvidence(recorderPool, store, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: observed.eventId, idempotencyKey: 'record-a', actor: { ...input.actor, executionReference: 'changed-record-retry' } }), /idempotency integrity conflict/u);
     await assert.rejects(() => appendEvidenceTransition(pool, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: recorded.eventId, expectedPriorState: 'recorded', newState: 'retracted', idempotencyKey: 'dangling-causation', actor: input.actor, causationEventId: 'c'.repeat(64), reason: { code: 'reference-proof', detail: null, sourceClaim: null } }), /causation reference must resolve/u);
     await assert.rejects(() => appendEvidenceTransition(pool, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: recorded.eventId, expectedPriorState: 'recorded', newState: 'retracted', idempotencyKey: 'dangling-related-evidence', actor: input.actor, relatedEvidenceId: '44444444-4444-4444-8444-444444444444', reason: { code: 'reference-proof', detail: null, sourceClaim: null } }), /related evidence reference must resolve/u);
-    const revisionTwoRecorded = await validateAndRecordEvidence(pool, store, a, { evidenceId: revisionTwo.evidenceId, expectedPredecessorEventId: revisionTwo.eventId, idempotencyKey: 'record-r2', actor: input.actor });
-    const tenantBRecorded = await validateAndRecordEvidence(pool, store, b, { evidenceId: tenantBObservation.evidenceId, expectedPredecessorEventId: tenantBObservation.eventId, idempotencyKey: 'record-b', actor: input.actor });
+    const revisionTwoRecorded = await validateAndRecordEvidence(recorderPool, store, a, { evidenceId: revisionTwo.evidenceId, expectedPredecessorEventId: revisionTwo.eventId, idempotencyKey: 'record-r2', actor: input.actor });
+    const tenantBRecorded = await validateAndRecordEvidence(recorderPool, store, b, { evidenceId: tenantBObservation.evidenceId, expectedPredecessorEventId: tenantBObservation.eventId, idempotencyKey: 'record-b', actor: input.actor });
     const unrecorded = await createObservedEvidence(pool, { ...input, externalObjectId: 'source-unrecorded', creationIdempotencyKey: 'delivery-unrecorded' });
     await assert.rejects(() => appendEvidenceTransition(pool, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: recorded.eventId, expectedPriorState: 'recorded', newState: 'superseded', idempotencyKey: 'supersede-without-replacement', actor: input.actor, reason: { code: 'replacement-required', detail: 'must have a replacement', sourceClaim: null } }), /requires replacement evidence/u);
     await assert.rejects(() => appendEvidenceTransition(pool, a, { evidenceId: observed.evidenceId, expectedPredecessorEventId: recorded.eventId, expectedPriorState: 'recorded', newState: 'superseded', idempotencyKey: 'supersede-nonexistent', actor: input.actor, relatedEvidenceId: '33333333-3333-4333-8333-333333333333', reason: { code: 'replacement-required', detail: null, sourceClaim: null } }), /related evidence reference must resolve/u);
@@ -147,8 +166,8 @@ async function main(): Promise<void> {
     proof(noContext.rows[0]?.count === '0', 'Tenant context leaked after evidence operations');
     await withTenantTransaction(pool, a, async (client) => proof((await client.query('select count(*)::text as count from core.evidence_records')).rows[0]?.count === '6', 'Tenant A did not retain only its six observations'));
     await withTenantTransaction(pool, b, async (client) => proof((await client.query('select count(*)::text as count from core.evidence_records')).rows[0]?.count === '1', 'Tenant B did not retain only its one observation'));
-    console.log(JSON.stringify({ verdict: { 'TENANT RLS PERSISTENCE': 'PASS', 'IMMUTABLE EVIDENCE CREATION': 'PASS', 'OBSERVED TO RECORDED VALIDATION BOUNDARY': 'PASS', 'OPERATIONAL RETRY SAFETY': 'PASS', 'CORE REFERENCE INTEGRITY': 'PASS', 'APPEND-ONLY LEDGER': 'PASS', 'ATOMIC NO-FORK TRANSITIONS': 'PASS', 'DETERMINISTIC IDEMPOTENCY': 'PASS', 'RECORDED_AT PAYLOAD BINDING': 'PASS', 'SUPERSESSION INTEGRITY': 'PASS', 'PHASE 0D RECEIPT VERIFICATION': 'PASS', 'FIVE-QUESTION RECONSTRUCTION': 'PASS' } }));
-  } finally { await pool.end(); }
+    console.log(JSON.stringify({ verdict: { 'TENANT RLS PERSISTENCE': 'PASS', 'IMMUTABLE EVIDENCE CREATION': 'PASS', 'OBSERVED TO RECORDED VALIDATION BOUNDARY': 'PASS', 'RECORDER BOUNDARY': 'PASS', 'INITIAL EVENT REFERENCE INTEGRITY': 'PASS', 'STRICT TIMESTAMP NORMALIZATION': 'PASS', 'OPERATIONAL RETRY SAFETY': 'PASS', 'CORE REFERENCE INTEGRITY': 'PASS', 'APPEND-ONLY LEDGER': 'PASS', 'ATOMIC NO-FORK TRANSITIONS': 'PASS', 'DETERMINISTIC IDEMPOTENCY': 'PASS', 'RECORDED_AT PAYLOAD BINDING': 'PASS', 'SUPERSESSION INTEGRITY': 'PASS', 'PHASE 0D RECEIPT VERIFICATION': 'PASS', 'FIVE-QUESTION RECONSTRUCTION': 'PASS' } }));
+  } finally { await Promise.all([pool.end(), recorderPool.end()]); }
   await rm(root, { recursive: true, force: true });
 }
 await main();

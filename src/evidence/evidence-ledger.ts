@@ -75,7 +75,23 @@ function lengthPrefixed(values: Array<string | number | null>): string { return 
 function canonicalActor(actor: ObservationInput['actor']): { kind: ActorKind; reference: string; version: string; executionReference: string | null } { return { kind: actor.kind, reference: actor.reference, version: actor.version, executionReference: nullable(actor.executionReference) }; }
 
 function normalizeTimestamp(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|([+-])(\d{2}):(\d{2}))$/u.exec(value);
+  if (!match) throw new Error('Evidence timestamps must be valid RFC 3339 instants with at most millisecond precision');
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, , zone, , offsetHourText, offsetMinuteText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const offsetHour = zone === 'Z' ? 0 : Number(offsetHourText);
+  const offsetMinute = zone === 'Z' ? 0 : Number(offsetMinuteText);
+  if (month < 1 || month > 12
+    || day < 1 || day > daysInMonth[month - 1]!
+    || hour > 23 || minute > 59 || second > 59
+    || offsetHour > 23 || offsetMinute > 59) {
     throw new Error('Evidence timestamps must be valid RFC 3339 instants');
   }
   const parsed = new Date(value);
@@ -293,7 +309,7 @@ async function appendTransition(client: PoolClient, tenantId: TenantId, input: T
   return { evidenceId: input.evidenceId, eventId: eventIdValue, state: input.newState, sequence, created: true };
 }
 
-export async function validateAndRecordEvidence(pool: Pool, store: EvidenceStore, tenantId: TenantId, input: ValidateAndRecordInput): Promise<EvidenceResult> {
+export async function validateAndRecordEvidence(recorderPool: Pool, store: EvidenceStore, tenantId: TenantId, input: ValidateAndRecordInput): Promise<EvidenceResult> {
   const normalizedOccurredAt = input.eventOccurredAt ? normalizeTimestamp(input.eventOccurredAt) : undefined;
   const transition: TransitionInput = {
     evidenceId: input.evidenceId,
@@ -305,7 +321,7 @@ export async function validateAndRecordEvidence(pool: Pool, store: EvidenceStore
     eventOccurredAt: normalizedOccurredAt,
     reason: { code: 'receipt-validated', detail: null, sourceClaim: null },
   };
-  return withTenantTransaction(pool, tenantId, async (client) => {
+  return withTenantTransaction(recorderPool, tenantId, async (client) => {
     const retried = await findRetriedTransition(client, tenantId, transition);
     if (retried) return retried;
     try {

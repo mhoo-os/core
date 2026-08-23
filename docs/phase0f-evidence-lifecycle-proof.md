@@ -41,7 +41,10 @@ rechecks the trusted Twenty Workspace-to-tenant binding and minimum provenance,
 then appends `observed -> recorded`. A custody-validation failure instead
 appends the only other legal successor, `observed -> invalidated`; the initial
 observation remains durable. Direct generic `recorded` transitions are refused.
-This creates no user, membership, or authorization authority.
+The database independently refuses `observed -> recorded` unless the command
+uses the narrowly granted `core_recorder` role; `core_api` and `core_worker`
+cannot bypass receipt validation with raw SQL. This creates no user,
+membership, or authorization authority.
 
 Creation is serialized only by its declared identity:
 `(tenant_id, acquisition_mechanism, creation_idempotency_key)`. A versioned
@@ -53,6 +56,10 @@ append timestamp (`recorded_at`) before the event is inserted. Timestamp inputs
 are normalized to UTC before they are hashed and stored; transition reasons have
 the fixed `code`, `detail`, and `sourceClaim` shape. Initial and later retries
 recompute both deterministic event identity and the full canonical payload.
+Timestamp parsing rejects impossible calendar values and precision beyond
+milliseconds rather than silently changing immutable provenance. Supplied Core
+causation and related-Evidence links must resolve within the same tenant;
+initial observed events must not supply either link.
 Supersession requires a distinct, same-tenant replacement whose lifecycle head
 is `recorded`; other events may retain an optional related Evidence link. No
 generic workflow state, scheduler, connector, or storage framework is
@@ -72,6 +79,8 @@ introduced.
   `observed -> invalidated` custody retention;
 - initial and later idempotent retries, including changed initial actor and
   changed later execution-reference integrity rejection;
+- raw API-role `observed -> recorded` SQL rejection, raw initial-event reference
+  rejection, and strict invalid-calendar/high-precision timestamp rejection;
 - canonical initial-event hash reconstruction showing that `recorded_at` is
   bound into `event_payload_sha256`;
 - successful supersession to a same-tenant recorded replacement, plus rejection

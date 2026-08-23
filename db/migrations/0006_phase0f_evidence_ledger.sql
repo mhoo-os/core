@@ -1,3 +1,11 @@
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'core_recorder') then
+    create role core_recorder nologin nosuperuser nobypassrls nocreatedb nocreaterole noinherit;
+  end if;
+end
+$$;
+
 create table if not exists core.evidence_records (
   evidence_id uuid primary key,
   tenant_id uuid not null references core.workspace_bindings (tenant_id),
@@ -116,7 +124,9 @@ begin
     if new.tenant_id is distinct from (select tenant_id from core.evidence_records where evidence_id = new.evidence_id)
        or new.provenance_event_id is distinct from (select initial_provenance_event_id from core.evidence_records where evidence_id = new.evidence_id)
        or new.prior_lifecycle_state is not null
-       or new.new_lifecycle_state <> 'observed' then
+       or new.new_lifecycle_state <> 'observed'
+       or new.causation_event_id is not null
+       or new.related_evidence_id is not null then
       raise exception 'Initial evidence event does not match its immutable observation';
     end if;
     return new;
@@ -130,6 +140,9 @@ begin
      or tip.current_state <> new.prior_lifecycle_state
      or not core.evidence_lifecycle_transition_is_legal(tip.current_state, new.new_lifecycle_state) then
     raise exception 'Evidence lifecycle event is not a valid successor of the current tip';
+  end if;
+  if new.new_lifecycle_state = 'recorded' and current_user <> 'core_recorder' then
+    raise exception 'Evidence recording requires the core_recorder boundary';
   end if;
   if new.causation_event_id is not null then
     perform 1 from core.evidence_provenance_events
@@ -211,5 +224,10 @@ create trigger evidence_heads_validate_projection before insert or update on cor
 drop trigger if exists evidence_event_must_be_current_tip on core.evidence_provenance_events;
 create constraint trigger evidence_event_must_be_current_tip after insert on core.evidence_provenance_events deferrable initially deferred for each row execute function core.assert_new_event_is_current_tip();
 
+grant usage on schema core to core_recorder;
+grant select on core.workspace_bindings to core_recorder;
 grant select, insert on core.evidence_records, core.evidence_provenance_events to core_api, core_worker;
 grant select, insert, update on core.evidence_lifecycle_heads to core_api, core_worker;
+grant select on core.evidence_records to core_recorder;
+grant select, insert on core.evidence_provenance_events to core_recorder;
+grant select, update on core.evidence_lifecycle_heads to core_recorder;
