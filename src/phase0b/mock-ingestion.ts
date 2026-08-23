@@ -5,8 +5,9 @@ import { sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 
 import { withTenantDrizzleTransaction } from '../db/drizzle-transaction';
-import { tenantId, type TenantId } from '../db/tenant-context';
-import type { MockIngestionJob } from '../jobs/enqueue';
+import type { TenantId } from '../db/tenant-context';
+import type { MhooJobContext } from '../jobs/context';
+import type { MockIngestionPayload } from '../jobs/enqueue';
 
 export const MOCK_ITEM_COUNT = 100;
 
@@ -47,13 +48,13 @@ export function canonicalChunkKey(input: {
   ].join('\n'));
 }
 
-export function mockItem(job: Pick<MockIngestionJob, 'tenantId' | 'documentId' | 'sourceRevision' | 'transformVersion'>, ordinal: number): MockItem {
-  const normalizedContent = `phase0b mock document ${job.documentId} revision ${job.sourceRevision} item ${ordinal}`;
+export function mockItem(context: MhooJobContext, payload: Pick<MockIngestionPayload, 'documentId' | 'sourceRevision' | 'transformVersion'>, ordinal: number): MockItem {
+  const normalizedContent = `phase0b mock document ${payload.documentId} revision ${payload.sourceRevision} item ${ordinal}`;
   return {
     ordinal,
     normalizedContent,
     contentHash: hash(normalizedContent),
-    chunkKey: canonicalChunkKey({ ...job, chunkOrdinal: ordinal }),
+    chunkKey: canonicalChunkKey({ tenantId: context.tenantId, ...payload, chunkOrdinal: ordinal }),
   };
 }
 
@@ -64,32 +65,37 @@ export function mockItem(job: Pick<MockIngestionJob, 'tenantId' | 'documentId' |
  */
 export async function runMockIngestion(
   workerDataPool: Pool,
-  job: MockIngestionJob,
+  context: MhooJobContext,
+  payload: MockIngestionPayload,
   hooks: MockIngestionHooks = {},
 ): Promise<MockIngestionResult> {
   let created = 0;
   let reconciled = 0;
   const failedOnce = hooks.failedOnce ?? new Set<string>();
 
-  await withTenantDrizzleTransaction(workerDataPool, tenantId(job.tenantId), async ({ db }) => {
-    await db.execute(sql`
+  await withTenantDrizzleTransaction(workerDataPool, context.tenantId, async ({ db }) => {
+    const processing = await db.execute(sql`
       update core.phase0b_ingestions
       set ingestion_status = 'processing', updated_at = now()
-      where id = ${job.ingestionId}::uuid
+      where id = ${payload.ingestionId}::uuid
+      returning id
     `);
+    if (processing.rows.length !== 1) {
+      throw new Error('Mock ingestion is not visible within trusted tenant context');
+    }
   });
 
   for (let ordinal = 1; ordinal <= MOCK_ITEM_COUNT; ordinal += 1) {
-    const item = mockItem(job, ordinal);
+    const item = mockItem(context, payload, ordinal);
 
-    await withTenantDrizzleTransaction(workerDataPool, tenantId(job.tenantId), async ({ db }) => {
+    await withTenantDrizzleTransaction(workerDataPool, context.tenantId, async ({ db }) => {
       const inserted = await db.execute(sql`
         insert into core.phase0b_items (
           chunk_key, tenant_id, ingestion_id, document_id, source_revision,
           transform_version, chunk_ordinal, content_hash, normalized_content
         ) values (
-          ${item.chunkKey}, ${job.tenantId}::uuid, ${job.ingestionId}::uuid,
-          ${job.documentId}, ${job.sourceRevision}, ${job.transformVersion},
+          ${item.chunkKey}, ${context.tenantId}::uuid, ${payload.ingestionId}::uuid,
+          ${payload.documentId}, ${payload.sourceRevision}, ${payload.transformVersion},
           ${item.ordinal}, ${item.contentHash}, ${item.normalizedContent}
         )
         on conflict (chunk_key) do nothing
@@ -101,29 +107,29 @@ export async function runMockIngestion(
 
       await hooks.onItemInsideTransaction?.(item);
 
-      if (job.holdTransactionAt === ordinal && process.env.PHASE0B_HOLD_TRANSACTIONS === '1') {
+      if (payload.holdTransactionAt === ordinal && process.env.PHASE0B_HOLD_TRANSACTIONS === '1') {
         // Used only by the SIGKILL proof; its parent terminates this process.
         console.log(`PHASE0B_HOLDING_TRANSACTION ${ordinal}`);
         await delay(30_000);
       }
 
-      if (job.permanentlyFailAt === ordinal) {
+      if (payload.permanentlyFailAt === ordinal) {
         throw new Error(`deterministic permanent mock failure at item ${ordinal}`);
       }
 
-      const failureKey = `${job.ingestionId}:${ordinal}`;
-      if (job.failOnceAt === ordinal && !failedOnce.has(failureKey)) {
+      const failureKey = `${payload.ingestionId}:${ordinal}`;
+      if (payload.failOnceAt === ordinal && !failedOnce.has(failureKey)) {
         failedOnce.add(failureKey);
         throw new Error(`deterministic one-time mock failure at item ${ordinal}`);
       }
     });
   }
 
-  await withTenantDrizzleTransaction(workerDataPool, tenantId(job.tenantId), async ({ db }) => {
+  await withTenantDrizzleTransaction(workerDataPool, context.tenantId, async ({ db }) => {
     await db.execute(sql`
       update core.phase0b_ingestions
       set ingestion_status = 'completed', last_ingested_at = now(), updated_at = now()
-      where id = ${job.ingestionId}::uuid
+      where id = ${payload.ingestionId}::uuid
     `);
   });
 
