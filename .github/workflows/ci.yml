@@ -1,0 +1,66 @@
+name: Core validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start proof services
+        run: docker compose -f test/docker-compose.yml up -d --wait
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run typecheck
+        run: pnpm typecheck
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Run Phase 0 proof
+        run: pnpm phase0:proof
+
+      - name: Run Phase 0B proof
+        run: pnpm phase0b:proof
+
+      - name: Run Phase 0D proof
+        run: pnpm phase0d:proof
+
+      - name: Run Phase 0F proof
+        run: pnpm phase0f:proof
+
+      - name: Run migrator validation
+        env:
+          CORE_MIGRATOR_DATABASE_URL: postgres://core_migrator:phase0-migrator-local-only@127.0.0.1:55432/mhoo_core_phase0
+        run: pnpm db:migrate
+
+      - name: Stop proof services
+        if: always()
+        run: docker compose -f test/docker-compose.yml down -v

@@ -22,6 +22,7 @@ try {
   }
   await installOrUpgradePgBoss(pool);
   await pool.query(await readFile(path.join(process.cwd(), 'db/migrations/0005_phase0b_pgboss_runtime_grants.sql'), 'utf8'));
+  await pool.query(await readFile(path.join(process.cwd(), 'db/migrations/0006_phase0f_evidence_ledger.sql'), 'utf8'));
   console.log('Core migrations and pg-boss install/upgrade completed with migrator credentials.');
 } finally {
   await pool.end();
