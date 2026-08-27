@@ -12,7 +12,9 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
   is implemented.
 - The accepted cross-repository ADRs in `../mhoo/ADR/` govern identity,
   tenancy, Payload, and durable-job boundaries.
-- `docs/phase0-foundation.md`, `docs/phase0b-job-runtime.md`, and
+- `docs/phase0-foundation.md`, `docs/phase0b-job-runtime.md`,
+  `docs/phase0d-local-evidence-store.md`,
+  `docs/phase0f-evidence-lifecycle-proof.md`, and
   `docs/payload-feasibility.md` explain the current proof scope; they do not
   establish production authority or provider integration.
 
@@ -33,10 +35,11 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
 
 ## Current proof boundary
 
-- The repository has local filesystem evidence storage, deterministic local
-  vector behavior, HTTP isolation proof, and a provider-free pg-boss job proof.
-  These are local proofs, not claims of production storage, embeddings,
-  retrieval quality, GitHub ingestion, or external-provider access.
+- The repository has local filesystem and S3/R2-compatible evidence-storage
+  semantics, deterministic local vector behavior, HTTP isolation proof, a
+  provider-free pg-boss job proof, and an immutable tenant-RLS evidence
+  lifecycle proof. These are local proofs, not claims of production storage,
+  embeddings, retrieval quality, GitHub ingestion, or external-provider access.
 - Payload 3.88 remains a retained feasibility probe, not Core runtime
   infrastructure. Do not add Payload Admin, authentication, GraphQL auth, or
   Payload Jobs without a new reviewed architecture decision.
@@ -49,9 +52,9 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
   PostgreSQL/pgvector environment. New migrations must retain the tenant and
   role boundaries above.
 - Validate the affected surface with `pnpm test`, `pnpm typecheck`, and
-  `pnpm build`; run `pnpm phase0:proof` or `pnpm phase0b:proof` when changing
-  their boundary. `pnpm payload:feasibility` is evidence only, not a runtime
-  validation path.
+  `pnpm build`; run the applicable `pnpm phase0:proof`, `pnpm phase0b:proof`,
+  `pnpm phase0d:proof`, or `pnpm phase0f:proof` when changing its boundary.
+  `pnpm payload:feasibility` is evidence only, not a runtime validation path.
 - Architecture changes affecting identity, authority, tenancy, or Core's
   cross-repository contract require an ADR in `../mhoo/ADR/`. Provider calls,
   hosted services, production data, and credentials require explicit authorization.
