@@ -826,7 +826,7 @@ separate verified migration and rollback decision.
 ## 31. Proof branch and commit
 
 - Branch: `codex/twenty-sdk-core-feasibility`
-- Proof commit: `TO_BE_RECORDED_AFTER_FIRST_BOUNDED_COMMIT`
+- Proof commit: `4cb17b46ddedd44d88a63d4025bda82328eb16ea`
 - Base: Core `origin/main` `93dfdae8463d280ad7f8bc1cc97eac6c680aec43`
 - Merge status: intentionally unmerged
 
