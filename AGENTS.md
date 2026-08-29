@@ -2,24 +2,28 @@
 
 ## Repository role
 
-`core` contains the local Mhoo Core foundation and its isolation proofs. It is
-not the authority for human identity, authentication, membership, or Twenty
-Workspace lifecycle, and it is not yet a production Knowledge Plane.
+`core` preserves the superseded separate-Core implementation and its local
+isolation proofs. Accepted Mhoo ADR-0008 assigns advancing `@mhoo/core` App
+source to `mhoo-twenty`; this repository receives no new target behavior. It is
+not human/Workspace authority or a production Knowledge Plane.
 
 ## Sources of truth
 
 - Current migrations, `src/`, tests, and `package.json` scripts establish what
   is implemented.
-- The accepted cross-repository ADRs in `../mhoo/ADR/` govern identity,
-  tenancy, Payload, and durable-job boundaries.
+- Accepted ADR-0008 and the current sources in `../mhoo/docs/architecture/`
+  govern the target disposition. This repository's source and earlier ADRs
+  govern only the exact legacy behavior they implement or prove.
 - `docs/phase0-foundation.md`, `docs/phase0b-job-runtime.md`, and
   `docs/payload-feasibility.md` explain the current proof scope; they do not
   establish production authority or provider integration.
 
 ## Identity and tenant isolation
 
-- Accept a trusted Twenty Workspace-to-`tenant_id` binding only to physically
-  isolate Core data. Never treat it as an authorization substitute.
+- Inside this legacy source, accept a trusted Twenty
+  Workspace-to-`tenant_id` binding only to physically isolate Core data. Never
+  treat it as an authorization substitute or copy it into the target merely to
+  preserve the old design.
 - Every data-plane access must remain tenant-scoped. Preserve `tenant_id`,
   FORCE RLS, and policies based on transaction-local
   `app.current_tenant_id`.
@@ -42,6 +46,8 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
   Payload Jobs without a new reviewed architecture decision.
 - Keep local test data and credentials confined to the isolated test setup;
   never import legacy data or credentials by default.
+- These proofs justify preserving evidence, not advancing or deploying a
+  separate Core API, worker, database, queue, object store, or MCP service.
 
 ## Working and validation rules
 
@@ -58,3 +64,6 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
 - Architecture changes affecting identity, authority, tenancy, or Core's
   cross-repository contract require an ADR in `../mhoo/ADR/`. Provider calls,
   hosted services, production data, and credentials require explicit authorization.
+- Do not implement new Mhoo product behavior here. A bounded extraction,
+  archival action, data-retention decision, or destructive retirement requires
+  its own reviewed plan and evidence; ADR-0008 does not authorize it by itself.
