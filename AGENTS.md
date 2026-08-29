@@ -45,6 +45,9 @@ Workspace lifecycle, and it is not yet a production Knowledge Plane.
 
 ## Working and validation rules
 
+- Do not manually edit a generated Mhoo context block. Run the central checker
+  for context changes and keep local implementation prose tied to current Core
+  source, tests, migrations, and proof records.
 - Preserve migration order and prove upgrades with the dedicated isolated
   PostgreSQL/pgvector environment. New migrations must retain the tenant and
   role boundaries above.
