@@ -1,14 +1,14 @@
 <!-- mhoo-os-context:start -->
-### Mhoo Core: Mhoo OS context
+### Mhoo Core Legacy Evidence: Mhoo OS context
 
-This repository is the tenant-scoped durable state, knowledge, evidence, provenance, relationship, retrieval, model-output-custody, and bounded execution substrate.
+This repository is the preserved source and bounded proof record for the superseded separate-Core implementation.
 
-- **Owns:** tenant-scoped durable and derived state; knowledge and evidence custody; provenance and relationships; retrieval structures; bounded execution records.
-- **Does not own:** human identity or Workspace lifecycle; provider semantics; model or agent reasoning; deployment authority.
-- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/1374bbbe2a059320c29c8268ff971efbd9dfa256/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0006](https://github.com/mhoo-os/mhoo/blob/1374bbbe2a059320c29c8268ff971efbd9dfa256/ADR/0006-mhoo-os-system-architecture-blueprint.md).
+- **Owns:** the exact legacy Core source; local isolation and job proofs; historical evidence and provenance records pending an explicit archival or extraction decision.
+- **Does not own:** new target behavior or the @mhoo/core App; human identity or Workspace lifecycle; provider semantics; deployment or cutover authority.
+- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/0e94e6b00a3033215e4df3ab197e5559652c2436/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0008](https://github.com/mhoo-os/mhoo/blob/0e94e6b00a3033215e4df3ab197e5559652c2436/ADR/0008-twenty-framework-platform.md).
 - **Current implementation evidence:** [repository-owned source and records](https://github.com/mhoo-os/core/tree/main/docs).
 - **Deployment and production evidence:** owned separately by [Mhoo OS Infrastructure](https://github.com/mhoo-os/infrastructure/tree/main/docs); source, CI, publication, and rehearsal are not deployment or cutover proof.
-- **Upstream context:** Mhoo-native service repository; not an upstream product fork.
+- **Upstream context:** Mhoo-native legacy proof repository; ADR-0008 assigns advancing Mhoo App work to mhoo-twenty and authorizes no source or data deletion.
 - **Contributors:** start with the [repository instructions](https://github.com/mhoo-os/core/blob/main/AGENTS.md). Generated context is governed by [README governance](https://github.com/mhoo-os/mhoo/blob/main/docs/architecture/README_GOVERNANCE.md).
 <!-- mhoo-os-context:end -->
 
@@ -17,24 +17,38 @@ This repository is the tenant-scoped durable state, knowledge, evidence, provena
 [![Status: Phase 0](https://img.shields.io/badge/status-phase_0-2563eb)](https://github.com/mhoo-os/core)
 [![Authority: none](https://img.shields.io/badge/production_authority-none-64748b)](https://github.com/mhoo-os/core)
 
-Mhoo Core is the tenant-scoped durable state, knowledge, evidence, provenance,
-relationship, retrieval, model-output-custody, and bounded execution substrate.
-Evidence and provenance are important primitives, not the center of every Core
-mutation.
+This repository contains the superseded separate-Core implementation and its
+bounded Phase 0 proof record. The source still implements tenant-scoped durable
+state, evidence, provenance, retrieval experiments, and bounded execution for
+that historical design; it is no longer Mhoo's advancing application or data
+framework.
 
 Twenty remains the authority for people, authentication, memberships,
-authorization, and Workspace lifecycle. Core stores only a trusted Workspace to
-physical tenant-isolation binding.
+authorization, and Workspace lifecycle. The Workspace-to-tenant binding below
+is valid only inside the legacy proof boundary and is not part of the accepted
+target.
 
-Core owns tenant-scoped durable and derived state and enforces its trusted
-tenant context; PostgreSQL supplies transactions and RLS; pg-boss supplies
-atomic dispatch and bounded background tasks. Core does not reason. Models and
-agents own interpretation and reasoning, while Twenty and MCP are interfaces.
+Within this exact source, Core enforces tenant context; PostgreSQL supplies
+transactions and RLS; pg-boss supplies atomic dispatch and bounded background
+tasks. Core does not reason. These implementation facts remain evidence, not
+permission to advance or deploy the separate service.
 The detailed boundary and future-only Inngest tripwires are in
 [ADR-0001](ADR/0001-execution-architecture.md).
 
 See [Phase 0 foundation](docs/phase0-foundation.md) for the local proof and its
 limits.
+
+## Accepted target disposition
+
+[Mhoo ADR-0008](https://github.com/mhoo-os/mhoo/blob/0e94e6b00a3033215e4df3ab197e5559652c2436/ADR/0008-twenty-framework-platform.md)
+replaces the separate-Core target with a foundational `@mhoo/core` Twenty App
+owned in `mhoo-twenty`. This repository preserves its exact source and proof
+records as bounded evidence; it receives no new target behavior.
+
+See the [transition note](docs/twenty-framework-transition.md) for the accepted
+disposition, preservation rules, and remaining implementation gates. Nothing
+in ADR-0008 moves code or data, deletes this repository, or authorizes the App
+scaffold, deployment, cutover, or destructive retirement.
 
 ## Current local boundary
 
