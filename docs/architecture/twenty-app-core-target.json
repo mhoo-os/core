@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Conditional Twenty-App Core target — blocked execution gate",
+    "quality_profile": "showcase",
+    "viewBox": [1380, 630]
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "Human user",
+      "sublabel": "Mhoo-Twenty",
+      "pos": [40, 80],
+      "size": [150, 68]
+    },
+    {
+      "id": "twenty_authority",
+      "type": "security",
+      "label": "Twenty authority",
+      "sublabel": "identity • auth • Workspace",
+      "tag": "SOLE HUMAN AUTHORITY",
+      "pos": [320, 60],
+      "size": [190, 76]
+    },
+    {
+      "id": "core_app",
+      "type": "backend",
+      "label": "@mhoo/core Twenty App",
+      "sublabel": "domain • API • bounded logic",
+      "tag": "PROPOSED / UNACCEPTED",
+      "pos": [680, 60],
+      "size": [230, 82]
+    },
+    {
+      "id": "twenty_state",
+      "type": "database",
+      "label": "Twenty app-owned state",
+      "sublabel": "objects • relations • provenance",
+      "tag": "WORKSPACE-SCOPED",
+      "pos": [1100, 60],
+      "size": [220, 82]
+    },
+    {
+      "id": "execution_gate",
+      "type": "security",
+      "label": "Execution isolation gate",
+      "sublabel": "secret-isolated • memory-bounded",
+      "tag": "BLOCKED",
+      "pos": [1040, 180],
+      "size": [210, 78]
+    },
+    {
+      "id": "models_agents",
+      "type": "external",
+      "label": "Models and agents",
+      "sublabel": "reasoning and synthesis",
+      "tag": "CORE DOES NOT REASON",
+      "pos": [40, 330],
+      "size": [180, 76]
+    },
+    {
+      "id": "mcp_adapter",
+      "type": "backend",
+      "label": "Thin Mhoo MCP adapter",
+      "sublabel": "transport and tool mapping",
+      "pos": [350, 330],
+      "size": [190, 72]
+    },
+    {
+      "id": "connectors",
+      "type": "external",
+      "label": "Mhoo Connectors",
+      "sublabel": "provider auth and semantics",
+      "pos": [40, 500],
+      "size": [180, 72]
+    },
+    {
+      "id": "durable_worker",
+      "type": "backend",
+      "label": "Narrow ingestion worker",
+      "sublabel": "atomic continuation • backfills",
+      "pos": [690, 500],
+      "size": [200, 76]
+    },
+    {
+      "id": "object_store",
+      "type": "cloud",
+      "label": "Object storage",
+      "sublabel": "content-addressed raw bytes",
+      "tag": "R2 CANDIDATE",
+      "pos": [1060, 420],
+      "size": [190, 76]
+    },
+    {
+      "id": "retrieval_index",
+      "type": "database",
+      "label": "Vector / hybrid retrieval",
+      "sublabel": "chunks • embeddings • search",
+      "pos": [1060, 525],
+      "size": [210, 76]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Twenty Runtime — conditional target",
+      "wraps": ["twenty_authority", "core_app", "twenty_state", "execution_gate"],
+      "pad": 30
+    },
+    {
+      "kind": "region",
+      "label": "Specialized external primitives only",
+      "wraps": ["durable_worker", "object_store", "retrieval_index"],
+      "pad": 26
+    },
+    {
+      "kind": "security-group",
+      "label": "Unclosed hard gate",
+      "wraps": ["execution_gate"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "human_to_authority",
+      "from": "human",
+      "to": "twenty_authority",
+      "label": "authenticated Workspace",
+      "variant": "security"
+    },
+    {
+      "id": "authority_to_app",
+      "from": "twenty_authority",
+      "to": "core_app",
+      "label": "authorized app context",
+      "variant": "security"
+    },
+    {
+      "id": "app_to_state",
+      "from": "core_app",
+      "to": "twenty_state",
+      "label": "generated REST / GraphQL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app_to_gate",
+      "from": "core_app",
+      "to": "execution_gate",
+      "label": "short logic only",
+      "variant": "security"
+    },
+    {
+      "id": "agents_to_mcp",
+      "from": "models_agents",
+      "to": "mcp_adapter",
+      "label": "MCP tools",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mcp_to_app",
+      "from": "mcp_adapter",
+      "to": "core_app",
+      "label": "scoped API / functions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "connectors_to_worker",
+      "from": "connectors",
+      "to": "durable_worker",
+      "label": "versioned ingress",
+      "variant": "emphasis"
+    },
+    {
+      "id": "worker_to_app",
+      "from": "durable_worker",
+      "to": "core_app",
+      "label": "idempotent API writes",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "worker_to_store",
+      "from": "durable_worker",
+      "to": "object_store",
+      "label": "hash + raw bytes"
+    },
+    {
+      "id": "worker_to_retrieval",
+      "from": "durable_worker",
+      "to": "retrieval_index",
+      "label": "chunks + embeddings",
+      "labelDy": 16
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Hard gate",
+      "items": [
+        "Twenty v2.37 LOCAL functions inherited undeclared server environment values.",
+        "No explicit LOCAL child memory, CPU, or concurrency ceiling was evidenced."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Conditional target",
+      "items": [
+        "Twenty App owns Core domain records, relations, permissions, generated APIs, and bounded logic.",
+        "Raw storage, hybrid retrieval, durable ingestion, and MCP remain narrow external primitives."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Authority preserved",
+      "items": [
+        "Twenty owns humans and Workspaces; Connectors own provider semantics; Infrastructure owns operations.",
+        "Core owns durable custody and retrieval, but models and agents perform reasoning."
+      ]
+    }
+  ]
+}
