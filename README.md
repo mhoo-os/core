@@ -5,10 +5,10 @@ This repository is the preserved source and bounded proof record for the superse
 
 - **Owns:** the exact legacy Core source; local isolation and job proofs; historical evidence and provenance records pending an explicit archival or extraction decision.
 - **Does not own:** new target behavior or the @mhoo/core App; human identity or Workspace lifecycle; provider semantics; deployment or cutover authority.
-- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/0e94e6b00a3033215e4df3ab197e5559652c2436/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0008](https://github.com/mhoo-os/mhoo/blob/0e94e6b00a3033215e4df3ab197e5559652c2436/ADR/0008-twenty-framework-platform.md).
+- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/a8e054de084ce3ede6deec960b9638b5250a4c1f/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0008](https://github.com/mhoo-os/mhoo/blob/a8e054de084ce3ede6deec960b9638b5250a4c1f/ADR/0008-twenty-framework-platform.md).
 - **Current implementation evidence:** [repository-owned source and records](https://github.com/mhoo-os/core/tree/main/docs).
 - **Deployment and production evidence:** owned separately by [Mhoo OS Infrastructure](https://github.com/mhoo-os/infrastructure/tree/main/docs); source, CI, publication, and rehearsal are not deployment or cutover proof.
-- **Upstream context:** Mhoo-native legacy proof repository; ADR-0008 assigns advancing Mhoo App work to mhoo-twenty and authorizes no source or data deletion.
+- **Upstream context:** Mhoo-native legacy proof repository; ADR-0008 assigns @mhoo/core work to mhoo-twenty; ADR-0009 assigns Finance to mhoo-twenty-next and authorizes no source or data deletion.
 - **Contributors:** start with the [repository instructions](https://github.com/mhoo-os/core/blob/main/AGENTS.md). Generated context is governed by [README governance](https://github.com/mhoo-os/mhoo/blob/main/docs/architecture/README_GOVERNANCE.md).
 <!-- mhoo-os-context:end -->
 
