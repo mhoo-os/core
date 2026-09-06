@@ -5,7 +5,7 @@ This repository is the preserved source and bounded proof record for the superse
 
 - **Owns:** the exact legacy Core source; local isolation and job proofs; historical evidence and provenance records pending an explicit archival or extraction decision.
 - **Does not own:** new target behavior or the @mhoo/core App; human identity or Workspace lifecycle; provider semantics; deployment or cutover authority.
-- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/108662ffc8a6dac69ab777d720775ec9879b49d0/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0008](https://github.com/mhoo-os/mhoo/blob/108662ffc8a6dac69ab777d720775ec9879b49d0/ADR/0008-twenty-framework-platform.md).
+- **Architecture authority:** [accepted Mhoo OS blueprint](https://github.com/mhoo-os/mhoo/blob/92e43a7b9a59570c76729fb5f8850c66bda6ef78/docs/architecture/SYSTEM_BLUEPRINT.md) and [ADR-0008](https://github.com/mhoo-os/mhoo/blob/92e43a7b9a59570c76729fb5f8850c66bda6ef78/ADR/0008-twenty-framework-platform.md).
 - **Current implementation evidence:** [repository-owned source and records](https://github.com/mhoo-os/core/tree/main/docs).
 - **Deployment and production evidence:** owned separately by [Mhoo OS Infrastructure](https://github.com/mhoo-os/infrastructure/tree/main/docs); source, CI, publication, and rehearsal are not deployment or cutover proof.
 - **Upstream context:** Mhoo-native legacy proof repository; ADR-0008 assigns @mhoo/core work to mhoo-twenty; ADR-0009 assigns Finance to mhoo-twenty-next and authorizes no source or data deletion.
