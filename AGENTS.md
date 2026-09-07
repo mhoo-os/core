@@ -84,6 +84,8 @@ not human/Workspace authority or a production Knowledge Plane.
 
 ## Handoff and completion
 
+Before continuation or handoff, record the primary issue (or explicitly none), implementation-owning repository, coordinating repo head and retained worker (or none), exact source commit and PR/evidence links, existing run-ledger location, dependencies/blockers and their owners (or explicitly none/unknown), and the authorized next step. Carry this mapping into the handoff and acknowledge the authoritative instructions commit and reading path. Resolve unknown or conflicting ownership with the owning head before dependent work; a project label or issue status does not grant authority or create a new task.
+
 - Routing is user -> voice coordinator -> owning repo head -> assigned worker.
   Reuse the existing worker; custody transfers only after an explicit ACK and
   notification to retained workers. A repo-head assignment is not a feature
