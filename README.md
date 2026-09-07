@@ -78,3 +78,56 @@ workflow engine.
 
 [Payload feasibility](docs/payload-feasibility.md) records why Payload is not
 used as Core runtime infrastructure.
+
+## Contributor entrypoint
+
+Read [AGENTS.md](AGENTS.md) before work. This repository owns preservation of
+its exact legacy implementation and proofs; advancing `@mhoo/core` work belongs
+to `mhoo-twenty`. The package name in `package.json` does not change that boundary.
+
+Before probes, reuse the assigned issue/PR run ledger and coordinator checkpoint.
+On the current desk these are routed through
+`/Users/mhoooo/Documents/Codex/MHOO-DESK-SETUP.md` and
+`/Users/mhoooo/Documents/Codex/2026-09-06/mhoo-coordinator/checkpoint.json`.
+These are local coordination pointers, not portable repository dependencies.
+If unavailable, request the retained coordinator's existing receipt. Do not
+create a replacement ledger or infer that workers have stopped.
+
+Historical anchors include [Phase 0F PR #8](https://github.com/mhoo-os/core/pull/8)
+and [trusted async context PR #9](https://github.com/mhoo-os/core/pull/9), together
+with the Phase 0 documents above. Their merged source is evidence for the stated
+local scope, not a fresh test result. Adjacent
+[MHO-249](https://linear.app/mhoo/issue/MHO-249) concerns legacy-host retirement;
+it does not authorize archival or extraction of this repository. The bounded
+desk setup has no assigned Core feature issue; do not invent one.
+
+### Existing validation commands
+
+Commands below come from [package.json](package.json) and
+[Core validation CI](.github/workflows/ci.yml). The package pins pnpm 10.32.1,
+requires Node >=20.9.0, and CI selects Node 22.
+
+| Purpose | Existing command |
+| --- | --- |
+| Locked dependency install | `pnpm install --frozen-lockfile` |
+| Unit tests | `pnpm test` |
+| TypeScript checks | `pnpm typecheck` (`pnpm lint` runs the same `tsc --noEmit`) |
+| Next application build | `pnpm build` |
+| Foundation / jobs / storage / lifecycle proofs | `pnpm phase0:proof`, `pnpm phase0b:proof`, `pnpm phase0d:proof`, `pnpm phase0f:proof` |
+| Isolated migrator validation | `pnpm db:migrate` with the CI test-database configuration |
+| Retained Payload feasibility probe | `pnpm payload:feasibility` (not a runtime validation gate) |
+
+CI starts its dedicated services with
+`docker compose -f test/docker-compose.yml up -d --wait`. Proofs and migration
+commands can change that test database; confirm exclusive disposable ownership
+and read the owning proof document before running them. CI's final
+`docker compose -f test/docker-compose.yml down -v` removes its test volumes;
+do not apply that cleanup to an unknown or shared environment.
+
+For documentation-only work, verify links, command/config agreement, diff
+whitespace, and unchanged generated context, and document why local runtime
+suites were not repeated. Runtime/source changes remain subject to AGENTS.md
+and the existing CI gates. Reassess earlier receipts when relevant source,
+dependencies, fixtures, configuration, environment, or authority changes.
+Report review and CI status for the exact proposed head; neither grants merge,
+deployment, extraction, or retirement authority.

@@ -51,6 +51,20 @@ not human/Workspace authority or a production Knowledge Plane.
 
 ## Working and validation rules
 
+- Before any probe, read the assigned issue/PR run ledger and the existing
+  coordinator checkpoint. Reuse accepted receipts; record the exact source
+  commit, environment, result, remaining gate, and reason a new check is needed
+  in that same ledger. Do not create a parallel status system or confuse this
+  operational ledger with Core's historical evidence-ledger implementation.
+- Verify origin, remote default branch, base/head, dirty state, and retained
+  worktrees before editing. A missing local file is not evidence of remote
+  absence. Work in an isolated branch; preserve other workers' changes.
+- A receipt applies only to its recorded source and environment. Changes to
+  relevant source, dependencies, configuration, proof fixtures, environment, or
+  authority require reassessing its scope; unchanged accepted proofs need not
+  be repeated merely to report activity. Never convert source/CI proof into
+  runtime, recovery, or production acceptance.
+
 - Do not manually edit a generated Mhoo context block. Run the central checker
   for context changes and keep local implementation prose tied to current Core
   source, tests, migrations, and proof records.
@@ -67,3 +81,22 @@ not human/Workspace authority or a production Knowledge Plane.
 - Do not implement new Mhoo product behavior here. A bounded extraction,
   archival action, data-retention decision, or destructive retirement requires
   its own reviewed plan and evidence; ADR-0008 does not authorize it by itself.
+
+## Handoff and completion
+
+- Routing is user -> voice coordinator -> owning repo head -> assigned worker.
+  Reuse the existing worker; custody transfers only after an explicit ACK and
+  notification to retained workers. A repo-head assignment is not a feature
+  dispatch. See the [README contributor entrypoint](README.md#contributor-entrypoint).
+- Continue only the next authorized action that resolves a named remaining
+  gate. Finish with exact base/head, files, PR, checks or justified omissions,
+  evidence links, and retained-checkout availability in the existing ledger.
+  A committed or proposed instruction change is not yet present in other
+  workers' checkouts.
+- Escalate conflicting ownership, missing decision evidence, or a required
+  expansion of authority to the coordinator. Send requested catalog changes to
+  the central owner rather than editing generated context. List cleanup
+  candidates with custody and evidence; unknown or old does not mean disposable.
+- Stop when the scoped receipt is delivered or the next gate requires a new
+  decision. Do not invent an active issue, rerun unchanged proofs, merge,
+  deploy, extract, or archive to keep this legacy repository busy.
